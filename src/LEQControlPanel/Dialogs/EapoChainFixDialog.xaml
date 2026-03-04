@@ -1,0 +1,139 @@
+<!-- LEQ Control Panel — Copyright (c) 2025-2026 ArtIsWar LLC -->
+<!-- Licensed under GPL-3.0. See LICENSE file for details. -->
+<Window x:Class="LEQControlPanel.Dialogs.EapoChainFixDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="E-APO Chain Fix Required"
+        Width="580"
+        MinHeight="500"
+        SizeToContent="Height"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Topmost="True">
+
+    <Window.Resources>
+        <Style TargetType="Button" BasedOn="{StaticResource DialogOpacityButtonStyle}"/>
+        <Style TargetType="CheckBox" BasedOn="{StaticResource DialogCheckBoxStyle}"/>
+    </Window.Resources>
+
+    <Border Background="{StaticResource Brush_BackgroundDark}"
+            BorderBrush="{StaticResource Brush_BorderDark}"
+            BorderThickness="1"
+            CornerRadius="8">
+        <Grid Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>  <!-- Header - device name is the star -->
+                <RowDefinition Height="Auto"/>  <!-- Warning - short and punchy -->
+                <RowDefinition Height="Auto"/>  <!-- Fix steps - clean and simple -->
+                <RowDefinition Height="Auto"/>  <!-- Buttons -->
+            </Grid.RowDefinitions>
+
+            <!-- Header section - compact -->
+            <StackPanel Grid.Row="0" Margin="0,5,0,15" HorizontalAlignment="Center">
+                <!-- Caution symbol on its own line -->
+                <TextBlock Text="⚠️"
+                           FontSize="36"
+                           Foreground="{StaticResource Brush_Accent}"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,8"/>
+
+                <!-- Title -->
+                <TextBlock Text="E-APO Chain Fix Required"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource Brush_Accent}"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,15"/>
+
+                <!-- Device friendly name -->
+                <TextBlock x:Name="FriendlyNameText"
+                           Text="aiyama"
+                           FontSize="28"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource Brush_TextWhite}"
+                           HorizontalAlignment="Center"/>
+
+                <!-- Device interface name -->
+                <TextBlock x:Name="InterfaceNameText"
+                           Text="USB HIFI AUDIO"
+                           FontSize="14"
+                           Foreground="{StaticResource Brush_TitleGrey}"
+                           HorizontalAlignment="Center"
+                           Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <!-- Warning - short and punchy -->
+            <Border Grid.Row="1"
+                    Background="#2A1A1A"
+                    BorderBrush="{StaticResource Brush_Danger}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="12"
+                    Margin="0,0,0,15">
+                <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="⛔ LEQ toggle won't work" FontWeight="Bold" Foreground="{StaticResource Brush_Danger}" FontSize="16" Margin="0,0,0,8" TextAlignment="Center"/>
+                    <TextBlock Foreground="{StaticResource Brush_ForegroundMuted}" FontSize="14" TextAlignment="Center">
+                        <Run>• E-APO is active but LEQ isn't in its audio chain</Run>
+                        <LineBreak/>
+                        <Run>• This happens when LEQ was installed before E-APO</Run>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- Recovery Steps -->
+            <Border Grid.Row="2"
+                    Background="{StaticResource Brush_PanelBg}"
+                    BorderBrush="{StaticResource Brush_BorderDark}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="12"
+                    Margin="0,0,0,15">
+                <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="To fix:" FontWeight="SemiBold" Foreground="#40C77F" FontSize="16" Margin="0,0,0,6" TextAlignment="Center"/>
+                    <TextBlock Foreground="{StaticResource Brush_ForegroundMuted}" FontSize="14" TextAlignment="Center">
+                        <Run>1. Click 'Clean Install LEQ' below</Run>
+                        <LineBreak/>
+                        <Run>2. Re-run E-APO Configurator on this device</Run>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- Buttons -->
+            <Grid Grid.Row="3">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Button x:Name="CancelButton"
+                        Grid.Column="0"
+                        Content="Cancel"
+                        Click="CancelButton_Click"
+                        TabIndex="0"
+                        Height="36"
+                        Margin="0,0,5,0"
+                        Background="{StaticResource Brush_BorderDark}"
+                        Foreground="{StaticResource Brush_ForegroundMuted}"
+                        BorderBrush="{StaticResource Brush_BorderMedium}"
+                        FontWeight="SemiBold"
+                        Cursor="Hand"/>
+
+                <Button x:Name="CleanInstallButton"
+                        Grid.Column="1"
+                        Content="Clean Install LEQ"
+                        Click="CleanInstallButton_Click"
+                        TabIndex="1"
+                        Height="36"
+                        Margin="5,0,0,0"
+                        Background="{StaticResource Brush_Accent}"
+                        Foreground="{StaticResource Brush_BackgroundDark}"
+                        BorderThickness="0"
+                        FontWeight="SemiBold"
+                        Cursor="Hand"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

@@ -1,0 +1,183 @@
+<!-- LEQ Control Panel — Copyright (c) 2025-2026 ArtIsWar LLC -->
+<!-- Licensed under GPL-3.0. See LICENSE file for details. -->
+<Window x:Class="LEQControlPanel.Windows.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="About LEQ Control Panel"
+        Height="460" Width="450"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False">
+
+    <Window.Resources>
+        <Style x:Key="AboutButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#333333"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Padding" Value="18,8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#444444"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#444444"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#555555"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#555555"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CloseButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#666666"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <TextBlock Text="&#x2715;" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#C42B1C"/>
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border Background="{StaticResource Brush_BackgroundDark}" BorderBrush="{StaticResource Brush_BorderDark}" BorderThickness="1" CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/> <!-- Title bar -->
+                <RowDefinition Height="*"/>  <!-- Content -->
+            </Grid.RowDefinitions>
+
+            <!-- Custom Title Bar -->
+            <Border Grid.Row="0" Background="{StaticResource Brush_TitleBar}" CornerRadius="8,8,0,0" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <TextBlock Text="About"
+                               FontSize="12"
+                               Foreground="{StaticResource Brush_TitleGrey}"
+                               VerticalAlignment="Center"
+                               Margin="15,0,0,0"/>
+                    <Button Style="{StaticResource CloseButtonStyle}"
+                            HorizontalAlignment="Right"
+                            Margin="0,5,5,0"
+                            VerticalAlignment="Top"
+                            Click="CloseButton_Click"/>
+                </Grid>
+            </Border>
+
+            <!-- Content -->
+            <Border Grid.Row="1" Padding="25,15,25,25">
+                <StackPanel VerticalAlignment="Center">
+                    <!-- App Title -->
+                    <TextBlock Text="LEQ Control Panel"
+                               FontSize="22"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource Brush_Accent}"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,5"/>
+
+                    <!-- Version -->
+                    <TextBlock x:Name="VersionText" Text="Version 1.0.0"
+                               FontSize="13"
+                               Foreground="{StaticResource Brush_TitleGrey}"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,4"/>
+
+                    <!-- Copyright -->
+                    <TextBlock Text="&#169; 2025-2026 ArtIsWar LLC"
+                               FontSize="11"
+                               Foreground="#666666"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,15"/>
+
+                    <!-- Description -->
+                    <TextBlock Text="A standalone, open-source tool for registry-level Loudness Equalization control &amp; installation."
+                               TextWrapping="Wrap"
+                               TextAlignment="Center"
+                               FontSize="13"
+                               Foreground="#AAAAAA"
+                               Margin="0,0,0,25"/>
+
+                    <!-- Credits Box -->
+                    <Border BorderBrush="#333333" BorderThickness="1" CornerRadius="6" Padding="15" Margin="0,0,0,20" Background="#0A0A0A">
+                        <StackPanel>
+                            <TextBlock Text="CREDITS"
+                                       FontWeight="Bold"
+                                       FontSize="10"
+                                       Foreground="{StaticResource Brush_Neutral}"
+                                       Margin="0,0,0,10"
+                                       HorizontalAlignment="Center"/>
+                            <TextBlock HorizontalAlignment="Center" FontSize="13">
+                                <Run Text="Original Concept by " Foreground="#AAAAAA"/>
+                                <Run Text="Falcosc" FontWeight="Bold" Foreground="{StaticResource Brush_TextWhite}"/>
+                            </TextBlock>
+                            <TextBlock HorizontalAlignment="Center" Margin="0,8,0,0">
+                                <Hyperlink NavigateUri="https://github.com/Falcosc/enable-loudness-equalisation"
+                                           RequestNavigate="Hyperlink_RequestNavigate"
+                                           Foreground="{StaticResource Brush_Accent}"
+                                           TextDecorations="None">
+                                    View Original Repository →
+                                </Hyperlink>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Acknowledgments -->
+                    <TextBlock TextWrapping="Wrap" TextAlignment="Center" FontSize="11" Foreground="#666666" Margin="0,0,0,15">
+                        <Run Text="Interoperates with "/>
+                        <Hyperlink NavigateUri="https://sourceforge.net/projects/equalizerapo/"
+                                   RequestNavigate="Hyperlink_RequestNavigate"
+                                   Foreground="{StaticResource Brush_Accent}" TextDecorations="None">Equalizer APO</Hyperlink>
+                        <Run Text=" (GPL-2.0+). Uses Microsoft WMALFXGFXDSP.dll for loudness equalization."/>
+                    </TextBlock>
+
+                    <!-- Buttons -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,15">
+                        <Button Content="View License (GPL v3)"
+                                Click="ViewLicense_Click"
+                                Style="{StaticResource AboutButtonStyle}"/>
+                        <Button Content="ArtTuneKit"
+                                Click="VisitWebsite_Click"
+                                Style="{StaticResource AboutButtonStyle}"
+                                Margin="10,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- Footer -->
+                    <TextBlock Text="No Warranty Provided • Open Source Software"
+                               FontSize="10"
+                               Foreground="#444444"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

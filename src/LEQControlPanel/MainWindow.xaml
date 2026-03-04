@@ -1,0 +1,1655 @@
+<!-- LEQ Control Panel — Copyright (c) 2025-2026 ArtIsWar LLC -->
+<!-- Licensed under GPL-3.0. See LICENSE file for details. -->
+<Window x:Class="LEQControlPanel.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:LEQControlPanel"
+        mc:Ignorable="d"
+        Title="LEQ Control Panel"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        FontWeight="Regular"
+        Width="580"
+        Height="516"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="CanMinimize"
+        WindowStartupLocation="CenterScreen"
+        Loaded="Window_Loaded">
+
+    <Window.Resources>
+        <!-- Color brushes -->
+        <SolidColorBrush x:Key="Brush_ForegroundBright" Color="#FFFFFF"/>
+        <SolidColorBrush x:Key="Brush_ForegroundDim" Color="#888888"/>
+        <SolidColorBrush x:Key="Brush_LeqActive" Color="#40C77F"/>
+
+        <Style x:Key="ChipButtonStyle" TargetType="Button">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderBrush" Value="#333333"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                RenderTransformOrigin="0.5,0.5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="0.97" ScaleY="0.97"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <DrawingBrush x:Key="DotMatrixPattern" TileMode="Tile" Stretch="None" Viewport="0,0,8,8" ViewportUnits="Absolute" Viewbox="0,0,8,8" ViewboxUnits="Absolute">
+            <DrawingBrush.Drawing>
+                <GeometryDrawing Brush="#5A5A5A">
+                    <GeometryDrawing.Geometry>
+                        <EllipseGeometry Center="2,2" RadiusX="1.5" RadiusY="1.5"/>
+                    </GeometryDrawing.Geometry>
+                </GeometryDrawing>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+
+        <!-- Hazard Hatch Pattern for Missing Module State -->
+
+        <Style x:Key="ConsoleListStyle" TargetType="ListBox">
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush_ForegroundDim}"/>
+            <Setter Property="Background" Value="#050505"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="8,8,8,0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled"/>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <ContentPresenter Margin="0,2,0,0"/>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="InfoTextButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="#B0B0B0"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TacticalToggleButtonStyle" TargetType="ToggleButton">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Width" Value="80"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Border" CornerRadius="2" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="False">
+                                <Setter Property="Background" Value="#1A1A1A"/>
+                                <Setter Property="Foreground" Value="#666666"/>
+                                <Setter Property="BorderBrush" Value="#444444"/>
+                                <Setter Property="Content" Value="ACTIVATE"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Background" Value="#1A1A1A"/>
+                                <Setter Property="Foreground" Value="#32D74B"/>
+                                <Setter Property="BorderBrush" Value="#32D74B"/>
+                                <Setter Property="Content" Value="ACTIVATE"/>
+                                <Setter Property="FontWeight" Value="ExtraBold"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Opacity" Value="0.85"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PowerButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="60"/>
+            <Setter Property="Height" Value="60"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="#1A1A1A"/>
+            <Setter Property="BorderBrush" Value="#444444"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <Grid>
+                                <Border x:Name="InnerGlow" Background="{TemplateBinding Background}" Opacity="0.3" CornerRadius="6"/>
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="False">
+                                <Setter Property="Background" Value="#1A1A1A"/>
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#444444"/>
+                                <Setter TargetName="InnerGlow" Property="Opacity" Value="0"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Background" Value="#32D74B"/>
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#32D74B"/>
+                                <Setter TargetName="InnerGlow" Property="Background" Value="#32D74B"/>
+                                <Setter TargetName="InnerGlow" Property="Opacity" Value="0.6"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="InnerGlow" Property="Opacity" Value="0.8"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="InnerGlow" Property="Opacity" Value="1.0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="RockerSwitchStyle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="60"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Track" CornerRadius="15" Background="#2A2A2A" BorderBrush="#444444" BorderThickness="1" Width="60" Height="30">
+                            <Grid Background="Transparent">
+                                <Ellipse x:Name="Thumb" Width="26" Height="26" Fill="#666666" HorizontalAlignment="Left" Margin="2,0,0,0" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="False">
+                                <Setter TargetName="Track" Property="Background" Value="#2A2A2A"/>
+                                <Setter TargetName="Thumb" Property="Fill" Value="#666666"/>
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Left"/>
+                                <Setter TargetName="Thumb" Property="Margin" Value="2,0,0,0"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="#32D74B"/>
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#32D74B"/>
+                                <Setter TargetName="Thumb" Property="Fill" Value="White"/>
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                                <Setter TargetName="Thumb" Property="Margin" Value="0,0,2,0"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Track" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Track" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Centralized Typography System -->
+        <Style x:Key="Style_LabelCaps" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="./Fonts/#Archivo, Segoe UI"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
+        <Style x:Key="Style_DisplayNum" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="./Fonts/#Archivo, Segoe UI"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
+        <Style x:Key="Style_Body" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontWeight" Value="Regular"/>
+        </Style>
+
+        <Style x:Key="Style_Control" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+        </Style>
+
+        <Style x:Key="Style_Emphasis" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <!-- Utility Icon Button Style -->
+        <Style x:Key="UtilityIconButtonStyle" TargetType="Button">
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="44"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush_ForegroundDim}"/>
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="Transparent"
+                                BorderThickness="0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource Brush_Foreground}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter Property="Foreground" Value="#B0B0B0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Slider Button Style (Must be defined before SegmentedBarSliderStyle) -->
+        <Style x:Key="SliderButtonStyle" TargetType="RepeatButton">
+            <Setter Property="OverridesDefaultStyle" Value="true"/>
+            <Setter Property="IsTabStop" Value="false"/>
+            <Setter Property="Focusable" Value="false"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RepeatButton">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="2,0,0,2"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dark Mode ComboBox Style -->
+        <Style x:Key="DarkComboBoxStyle" TargetType="ComboBox">
+            <Setter Property="Foreground" Value="{StaticResource Brush_Foreground}"/>
+            <Setter Property="Background" Value="{StaticResource Brush_Surface}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush_Neutral}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}" ClickMode="Press" Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="0">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition/>
+                                                    <ColumnDefinition Width="20"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ContentPresenter Grid.Column="0" Margin="4,0,0,0" HorizontalAlignment="Left" VerticalAlignment="Center" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}" ContentTemplateSelector="{TemplateBinding ContentTemplateSelector}" TextElement.Foreground="{StaticResource Brush_TextWhite}"/>
+                                                <Path x:Name="Arrow" Grid.Column="1" Fill="{StaticResource Brush_Foreground}" HorizontalAlignment="Center" VerticalAlignment="Center" Data="M 0 0 L 4 4 L 8 0 Z"/>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="#2A2A2A"/>
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="#333333"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter x:Name="ContentSite" Visibility="Collapsed"/>
+                            <Popup x:Name="Popup" Placement="Bottom" IsOpen="{TemplateBinding IsDropDownOpen}" AllowsTransparency="True" Focusable="False" PopupAnimation="Slide">
+                                <Grid x:Name="DropDown" SnapsToDevicePixels="True" MinWidth="{TemplateBinding ActualWidth}" MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <Border x:Name="DropDownBorder" Background="{StaticResource Brush_Surface}" BorderBrush="{StaticResource Brush_Neutral}" BorderThickness="1"/>
+                                    <ScrollViewer Margin="4,6,4,6" SnapsToDevicePixels="True">
+                                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Grid>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="HasItems" Value="False">
+                                <Setter TargetName="DropDownBorder" Property="MinHeight" Value="95"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource Brush_ForegroundDim}"/>
+                            </Trigger>
+                            <Trigger Property="IsGrouping" Value="True">
+                                <Setter Property="ScrollViewer.CanContentScroll" Value="False"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Interactive Segmented Bar Slider Style -->
+        <Style x:Key="SegmentedBarSliderStyle" TargetType="Slider">
+            <Setter Property="Minimum" Value="2"/>
+            <Setter Property="Maximum" Value="7"/>
+            <Setter Property="IsSnapToTickEnabled" Value="True"/>
+            <Setter Property="TickFrequency" Value="1"/>
+            <Setter Property="IsMoveToPointEnabled" Value="True"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="ToolTip" Value="Drag or Click to adjust Release Time"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid>
+                            <!-- Left End Cap -->
+                            <Border x:Name="LeftCap" Background="#333333" Width="4" Height="24" HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                            <!-- Right End Cap -->
+                            <Border x:Name="RightCap" Background="#333333" Width="4" Height="24" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+
+                            <Border x:Name="SliderBackground" Background="#333333" Height="24" CornerRadius="2"/>
+                            <TickBar x:Name="SliderTicks" Fill="#151515" Placement="Bottom" Height="24" TickFrequency="1" Width="{TemplateBinding ActualWidth}" HorizontalAlignment="Stretch"/>
+                            <Track x:Name="PART_Track" Height="24">
+                                <Track.Thumb>
+                                    <Thumb Width="10" Height="28" Background="#FFFFFF">
+                                        <Thumb.Effect>
+                                            <DropShadowEffect ShadowDepth="1" BlurRadius="2" Opacity="0.5"/>
+                                        </Thumb.Effect>
+                                    </Thumb>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseLarge" Style="{StaticResource SliderButtonStyle}" Background="Transparent"/>
+                                </Track.IncreaseRepeatButton>
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseLarge" Style="{StaticResource SliderButtonStyle}" Background="{StaticResource Brush_Accent}"/>
+                                </Track.DecreaseRepeatButton>
+                            </Track>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="SliderBackground" Property="Background" Value="{StaticResource DotMatrixPattern}"/>
+                                <Setter TargetName="PART_Track" Property="Thumb.Visibility" Value="Collapsed"/>
+                                <Setter TargetName="SliderTicks" Property="Opacity" Value="0.3"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CapsuleToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="74"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border x:Name="Track"
+                                    CornerRadius="18"
+                                    Background="#1A1A1A"
+                                    BorderBrush="#444"
+                                    BorderThickness="1"/>
+
+                            <TextBlock x:Name="TextOn"
+                                       Text="ON"
+                                       FontSize="11" FontWeight="Bold"
+                                       Foreground="{StaticResource Brush_StatusGreen}"
+                                       HorizontalAlignment="Left" VerticalAlignment="Center"
+                                       Margin="12,0,0,0"
+                                       Opacity="0"/>
+
+                            <TextBlock x:Name="TextOff"
+                                       Text="OFF"
+                                       FontSize="11" FontWeight="Bold"
+                                       Foreground="{StaticResource Brush_StatusRed}"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       Margin="0,0,10,0"
+                                       Opacity="1"/>
+
+                            <Border x:Name="Thumb"
+                                    Width="30" Height="30"
+                                    CornerRadius="15"
+                                    Background="#B0B0B0"
+                                    HorizontalAlignment="Left"
+                                    Margin="3,0,0,0">
+                                <Border.Effect>
+                                    <DropShadowEffect ShadowDepth="1" BlurRadius="2" Opacity="0.4"/>
+                                </Border.Effect>
+                            </Border>
+                        </Grid>
+
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                                <Setter TargetName="Thumb" Property="Margin" Value="0,0,3,0"/>
+                                <Setter TargetName="Thumb" Property="Background" Value="#FFFFFF"/>
+
+                                <Setter TargetName="TextOff" Property="Opacity" Value="0"/>
+                                <Setter TargetName="TextOn" Property="Opacity" Value="1"/>
+
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#666"/>
+                            </Trigger>
+
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Install LEQ Button Style with two states -->
+        <Style x:Key="InstallLeqButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="45"/>
+            <Setter Property="Background" Value="#FFD700"/>
+            <Setter Property="Foreground" Value="#1A1A1A"/>
+            <Setter Property="BorderBrush" Value="#FFD700"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#FFC000"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#FFC000"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#FFC000"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#FFC000"/>
+                                <Setter TargetName="Border" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Border" Property="Background" Value="#2A2A2A"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#444444"/>
+                                <Setter Property="Foreground" Value="#666666"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Neutral Button Style (clickable but not attention-grabbing) -->
+        <Style x:Key="NeutralButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="45"/>
+            <Setter Property="Background" Value="#333333"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#444444"/>
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#666666"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#444444"/>
+                                <Setter TargetName="Border" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Hazard Warning Pattern - subtle grey diamonds -->
+        <DrawingBrush x:Key="HazardStripePattern" TileMode="Tile" Viewport="0,0,6,6" ViewportUnits="Absolute">
+            <DrawingBrush.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="#FF0A0A0A">
+                        <GeometryDrawing.Geometry>
+                            <RectangleGeometry Rect="0,0,6,6"/>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                    <GeometryDrawing Brush="#40CCCCCC">
+                        <GeometryDrawing.Geometry>
+                            <PathGeometry Figures="M 3,0 L 6,3 L 3,6 L 0,3 Z"/>
+                        </GeometryDrawing.Geometry>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+
+        <!-- Dark Mode ContextMenu Style -->
+        <Style x:Key="DarkContextMenuStyle" TargetType="ContextMenu">
+            <Setter Property="Background" Value="#1A1A1A"/>
+            <Setter Property="BorderBrush" Value="#333333"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Padding" Value="2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                Padding="4">
+                            <StackPanel IsItemsHost="True"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkSeparatorStyle" TargetType="Separator">
+            <Setter Property="Background" Value="#333333"/>
+            <Setter Property="Margin" Value="5,4,5,4"/>
+        </Style>
+
+        <Style x:Key="DarkSubmenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Grid>
+                            <Border x:Name="Border" Background="{TemplateBinding Background}" CornerRadius="2" Padding="{TemplateBinding Padding}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="16"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ContentPresenter Grid.Column="0" ContentSource="Header" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="&#x25B8;" Foreground="#777777" VerticalAlignment="Center" HorizontalAlignment="Right" FontSize="10"/>
+                                </Grid>
+                            </Border>
+                            <Popup x:Name="PART_Popup"
+                                   IsOpen="{Binding IsSubmenuOpen, RelativeSource={RelativeSource TemplatedParent}}"
+                                   Placement="Right"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   PopupAnimation="Fade">
+                                <Border Background="#1A1A1A"
+                                        BorderBrush="#333333"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="4">
+                                    <StackPanel IsItemsHost="True"/>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#333333"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="DarkMenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="Border" Background="{TemplateBinding Background}" CornerRadius="2" Padding="{TemplateBinding Padding}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock x:Name="CheckMark" Grid.Column="0" Text="&#x2713;" Visibility="Collapsed" Foreground="#FFD700" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#333333"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Glowing Install Button Style -->
+        <Style x:Key="GlowingInstallButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="45"/>
+            <Setter Property="Background" Value="#FFD700"/>
+            <Setter Property="Foreground" Value="#1A1A1A"/>
+            <Setter Property="BorderBrush" Value="#FFD700"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <!-- Glow layer (behind the button) -->
+                            <Border x:Name="GlowBorder"
+                                    Background="#FFD700"
+                                    CornerRadius="4"
+                                    Opacity="0">
+                                <Border.Effect>
+                                    <BlurEffect Radius="20"/>
+                                </Border.Effect>
+                            </Border>
+
+                            <!-- Main button -->
+                            <Border x:Name="MainBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="4">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <!-- Pulsing glow animation when enabled -->
+                            <Trigger Property="IsEnabled" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard x:Name="GlowStoryboard">
+                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                            <DoubleAnimation Storyboard.TargetName="GlowBorder"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0.3" To="0.8"
+                                                             Duration="0:0:1"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <StopStoryboard BeginStoryboardName="GlowStoryboard"/>
+                                </Trigger.ExitActions>
+                            </Trigger>
+
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="MainBorder" Property="Background" Value="#FFC000"/>
+                                <Setter TargetName="MainBorder" Property="BorderBrush" Value="#FFC000"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="MainBorder" Property="Background" Value="#FFC000"/>
+                                <Setter TargetName="MainBorder" Property="BorderBrush" Value="#FFC000"/>
+                                <Setter TargetName="MainBorder" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+
+                            <!-- Disabled state - no glow, inverted colors -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="MainBorder" Property="Background" Value="#1A1A1A"/>
+                                <Setter TargetName="MainBorder" Property="BorderBrush" Value="#FFD700"/>
+                                <Setter Property="Foreground" Value="#FFD700"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                                <Setter TargetName="GlowBorder" Property="Opacity" Value="0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Red Glowing Install Button Style (for Fix Device LEQ) -->
+        <Style x:Key="GlowingRedInstallButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="45"/>
+            <Setter Property="Background" Value="#CC2222"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#CC2222"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <!-- Glow layer (behind the button) -->
+                            <Border x:Name="GlowBorder"
+                                    Background="#CC2222"
+                                    CornerRadius="4"
+                                    Opacity="0">
+                                <Border.Effect>
+                                    <BlurEffect Radius="20"/>
+                                </Border.Effect>
+                            </Border>
+
+                            <!-- Main button -->
+                            <Border x:Name="MainBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="4">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <!-- Pulsing glow animation when enabled -->
+                            <Trigger Property="IsEnabled" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard x:Name="RedGlowStoryboard">
+                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                            <DoubleAnimation Storyboard.TargetName="GlowBorder"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             From="0.3" To="0.8"
+                                                             Duration="0:0:1"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <StopStoryboard BeginStoryboardName="RedGlowStoryboard"/>
+                                </Trigger.ExitActions>
+                            </Trigger>
+
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="MainBorder" Property="Background" Value="#DD3333"/>
+                                <Setter TargetName="MainBorder" Property="BorderBrush" Value="#DD3333"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="MainBorder" Property="Background" Value="#DD3333"/>
+                                <Setter TargetName="MainBorder" Property="BorderBrush" Value="#DD3333"/>
+                                <Setter TargetName="MainBorder" Property="Opacity" Value="0.9"/>
+                            </Trigger>
+
+                            <!-- Disabled state -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="MainBorder" Property="Background" Value="#1A1A1A"/>
+                                <Setter TargetName="MainBorder" Property="BorderBrush" Value="#CC2222"/>
+                                <Setter Property="Foreground" Value="#CC2222"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                                <Setter TargetName="GlowBorder" Property="Opacity" Value="0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Gold CheckBox Style -->
+        <Style x:Key="GoldCheckBoxStyle" TargetType="CheckBox">
+            <Setter Property="Background" Value="#2A2A2A"/>
+            <Setter Property="BorderBrush" Value="#555555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="#CCCCCC"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="CheckBoxBorder"
+                                    Grid.Column="0"
+                                    Width="16"
+                                    Height="16"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="2"
+                                    Margin="0,0,8,0">
+                                <TextBlock x:Name="CheckMark"
+                                           Text="&#x2713;"
+                                           FontSize="12"
+                                           FontWeight="Bold"
+                                           Foreground="#FFD700"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Visibility="Collapsed"/>
+                            </Border>
+                            <ContentPresenter Grid.Column="1"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="CheckBoxBorder" Property="BorderBrush" Value="#FFC000"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Fade Animation for Loading Overlay -->
+        <Storyboard x:Key="FadeInLoadingOverlay">
+            <DoubleAnimation Storyboard.TargetName="LeqLoadingOverlay"
+                           Storyboard.TargetProperty="Opacity"
+                           From="0.0" To="1.0" Duration="0:0:0.15"/>
+        </Storyboard>
+        <Storyboard x:Key="FadeOutLoadingOverlay">
+            <DoubleAnimation Storyboard.TargetName="LeqLoadingOverlay"
+                           Storyboard.TargetProperty="Opacity"
+                           From="1.0" To="0.0" Duration="0:0:0.15"/>
+        </Storyboard>
+
+        <!-- Fade Animations for Device Loading Bar -->
+        <Storyboard x:Key="FadeInDeviceLoadingBar">
+            <DoubleAnimation Storyboard.TargetName="DeviceLoadingBar"
+                           Storyboard.TargetProperty="Opacity"
+                           From="0.0" To="1.0" Duration="0:0:0.2"/>
+        </Storyboard>
+        <Storyboard x:Key="FadeOutDeviceLoadingBar">
+            <DoubleAnimation Storyboard.TargetName="DeviceLoadingBar"
+                           Storyboard.TargetProperty="Opacity"
+                           From="1.0" To="0.0" Duration="0:0:0.2"/>
+        </Storyboard>
+
+    </Window.Resources>
+
+    <Border Background="{StaticResource Brush_Surface}" CornerRadius="12" BorderBrush="#333333" BorderThickness="1" MouseLeftButtonDown="Window_MouseLeftButtonDown">
+        <Grid Margin="10,2">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="30"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Top" Margin="5,4,0,0">
+                    <Image Source="pack://application:,,,/icon.ico" Width="16" Height="16" Margin="0,1,6,0" VerticalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    <TextBlock Text="LEQ Control Panel" FontSize="13" FontWeight="SemiBold" Foreground="#FFD700" VerticalAlignment="Center"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,5,0">
+                    <Button x:Name="MinimizeButton" Width="30" Height="30" Click="MinimizeButton_Click" Content="&#x2012;" ToolTip="Minimize" AutomationProperties.Name="Minimize" TabIndex="11">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="#AAAAAA"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="3">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="border" Property="Background" Value="#333333"/>
+                                                    <Setter Property="Foreground" Value="White"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button x:Name="CloseButton" Width="30" Height="30" Click="CloseButton_Click" Content="&#x00D7;" ToolTip="Close" Margin="2,0,0,0" AutomationProperties.Name="Close" TabIndex="12">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="#AAAAAA"/>
+                                <Setter Property="FontSize" Value="16"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="border" Background="{TemplateBinding Background}" CornerRadius="3">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="border" Property="Background" Value="#4D1F1F"/>
+                                                    <Setter Property="Foreground" Value="#FF453A"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <Grid Grid.Row="1" MinHeight="40" Margin="10,2,10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Column 0: Device Cluster (Left Anchored) -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left">
+                    <!-- Item 1: Select Device Label -->
+                    <TextBlock FontFamily="Segoe UI" FontWeight="Normal" Foreground="{StaticResource Brush_ForegroundDim}" FontSize="14" VerticalAlignment="Center" Margin="0,0,10,0" TextAlignment="Left" LineHeight="14">
+                        Select<LineBreak/>Device
+                    </TextBlock>
+
+                    <!-- Item 2: Dropdown & Refresh Button -->
+                    <StackPanel VerticalAlignment="Center">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Grid.Column="0" x:Name="DeviceCombo" Width="220" Style="{StaticResource DarkComboBoxStyle}" SelectionChanged="DeviceCombo_SelectionChanged" FontSize="18" VerticalContentAlignment="Center" Height="38" Foreground="{StaticResource Brush_TextWhite}" AutomationProperties.Name="Select Audio Device" TabIndex="0">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="White"/>
+                                        <TextBlock Text="{Binding InterfaceName}"
+                                                   FontSize="10"
+                                                   Foreground="{StaticResource Brush_ForegroundDim}"
+                                                   Margin="0,-2,0,0"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                                <ComboBox.ItemContainerStyle>
+                                    <Style TargetType="ComboBoxItem">
+                                        <Setter Property="Foreground" Value="{StaticResource Brush_Foreground}"/>
+                                        <Setter Property="Background" Value="{StaticResource Brush_Surface}"/>
+                                        <Setter Property="BorderBrush" Value="{StaticResource Brush_Neutral}"/>
+                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#2A2A2A"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter Property="Background" Value="{StaticResource Brush_Neutral}"/>
+                                                <Setter Property="Foreground" Value="{StaticResource Brush_TextWhite}"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ComboBox.ItemContainerStyle>
+                            </ComboBox>
+                            <Button Grid.Column="1" x:Name="RefreshButton" Width="28" Height="38" Margin="4,0,0,0" Click="RefreshButton_Click" Background="#1F1F1F" BorderBrush="#333333" BorderThickness="1" ToolTip="Refresh Device List" Cursor="Hand" AutomationProperties.Name="Refresh Device List" TabIndex="1">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Border"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="2">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="#333333"/>
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter TargetName="Border" Property="Opacity" Value="0.8"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                                <TextBlock Text="&#x21BB;" FontSize="14" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                            </Button>
+                        </Grid>
+
+                        <!-- Pulsing loading bar (hidden by default, shown during device reset) -->
+                        <Border x:Name="DeviceLoadingBar" Width="220" Height="3" Background="#333333" CornerRadius="1.5" ClipToBounds="True" Opacity="0" Margin="0,3,0,0" HorizontalAlignment="Left">
+                            <Border x:Name="DeviceLoadingBarFill"
+                                    Width="80" Height="3"
+                                    CornerRadius="1.5"
+                                    HorizontalAlignment="Left"
+                                    Margin="-80,0,0,0">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                        <GradientStop Color="#00666666" Offset="0"/>
+                                        <GradientStop Color="#FFD700" Offset="0.5"/>
+                                        <GradientStop Color="#00666666" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                            </Border>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Item 3: Info Stack -->
+                    <Border BorderThickness="1,0,1,0" BorderBrush="{StaticResource Brush_Neutral}" Padding="15,0" Margin="15,0,0,0">
+                        <StackPanel Orientation="Vertical" VerticalAlignment="Center">
+                        <!-- Line 1: Layout (e.g., "7.1 Surround") -->
+                        <TextBlock x:Name="FormatLayoutText" Text="Stereo" FontSize="12" FontFamily="Segoe UI" FontWeight="Regular" LineHeight="12" LineStackingStrategy="BlockLineHeight" Opacity="0.8">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource Brush_ForegroundDim}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=FormatLayoutText}" Value="7.1 Surround">
+                                            <Setter Property="Foreground" Value="{StaticResource Brush_Accent}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <!-- Line 2: Bitrate/Hz (e.g., "24-bit 48000Hz") -->
+                        <TextBlock x:Name="FormatDetailsText" Text="24-bit 48000Hz" Foreground="{StaticResource Brush_ForegroundDim}" FontSize="11" FontFamily="Segoe UI" FontWeight="Regular" LineHeight="11" LineStackingStrategy="BlockLineHeight" Opacity="0.8"/>
+                        <!-- E-APO Status -->
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="E-APO: " FontSize="11" FontFamily="Segoe UI" FontWeight="Regular" LineHeight="11" LineStackingStrategy="BlockLineHeight" Foreground="{StaticResource Brush_ForegroundDim}"/>
+                            <TextBlock x:Name="EapoStatusState" Text="Active" FontSize="11" FontFamily="Segoe UI" FontWeight="Regular" LineHeight="11" LineStackingStrategy="BlockLineHeight">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource Brush_StatusRed}"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Text, ElementName=EapoStatusState}" Value="Active">
+                                                <Setter Property="Foreground" Value="{StaticResource Brush_StatusGreen}"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Column 2: Utility Menu (Right Anchored) -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,0,5,0">
+                    <!-- Settings Button with Alert Dot -->
+                    <Grid Margin="0,0,5,0">
+                        <Button x:Name="AppSettingsButton" Style="{StaticResource UtilityIconButtonStyle}" Content="&#xE713;" Click="AppSettingsButton_Click" ToolTip="Settings" AutomationProperties.Name="Settings" TabIndex="10">
+                            <Button.ContextMenu>
+                                <ContextMenu x:Name="AppSettingsMenu" Style="{StaticResource DarkContextMenuStyle}">
+                                    <MenuItem Header="Check for Updates" Style="{StaticResource DarkMenuItemStyle}" Click="CheckForUpdates_Click"/>
+                                    <Separator Style="{StaticResource DarkSeparatorStyle}"/>
+                                    <MenuItem Header="Run at Startup" IsCheckable="True" Style="{StaticResource DarkMenuItemStyle}" Checked="Setting_RunAtStartup_Changed" Unchecked="Setting_RunAtStartup_Changed"/>
+                                    <MenuItem Header="Start Minimized" IsCheckable="True" x:Name="MenuStartMinimized" Style="{StaticResource DarkMenuItemStyle}" Click="Setting_StartMin_Click"/>
+                                    <MenuItem Header="Always on Top" IsCheckable="True" IsChecked="True" Style="{StaticResource DarkMenuItemStyle}" Click="Setting_AlwaysOnTop_Click"/>
+                                    <MenuItem Header="Desktop Shortcut" IsCheckable="True" x:Name="MenuDesktopShortcut" Style="{StaticResource DarkMenuItemStyle}" Click="Setting_DesktopShortcut_Click"/>
+                                    <Separator Style="{StaticResource DarkSeparatorStyle}"/>
+                                    <MenuItem x:Name="MenuFixLeqRegistry" Header="Fix LEQ Registry" Style="{StaticResource DarkMenuItemStyle}" Click="FixLeqRegistry_Click"/>
+                                    <Separator Style="{StaticResource DarkSeparatorStyle}"/>
+                                <MenuItem Header="Close Behavior" Style="{StaticResource DarkSubmenuItemStyle}">
+                                    <MenuItem Header="Minimize to Tray" IsCheckable="True" x:Name="MenuMinimizeToTray" Style="{StaticResource DarkMenuItemStyle}" Click="Setting_CloseBehavior_Click"/>
+                                    <MenuItem Header="Exit Application" IsCheckable="True" x:Name="MenuExitApplication" Style="{StaticResource DarkMenuItemStyle}" Click="Setting_CloseBehavior_Click"/>
+                                    <Separator Style="{StaticResource DarkSeparatorStyle}"/>
+                                    <MenuItem Header="Ask Every Time" IsCheckable="True" x:Name="MenuAskEveryTime" Style="{StaticResource DarkMenuItemStyle}" Click="Setting_CloseBehavior_Click"/>
+                                </MenuItem>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                    </Grid>
+
+                    <!-- Info Button -->
+                    <Button x:Name="InfoButton" Style="{StaticResource UtilityIconButtonStyle}" Content="&#xE946;" Click="InfoButton_Click" ToolTip="About LEQ Control Panel"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- LEQ CONTROL UNIT - Mini-Window with Header Bar -->
+            <Border Grid.Row="2" CornerRadius="4" BorderBrush="#333" BorderThickness="1" Background="#050505" Margin="10,15,10,20" Padding="0">
+                <Grid x:Name="LeqControlUnit">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="24"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header Bar -->
+                    <Border Grid.Row="0" Background="#151515" BorderBrush="#2A2A2A" BorderThickness="0,0,0,1">
+                        <TextBlock Text="Loudness Equalization Control"
+                                   FontSize="10" Foreground="#666"
+                                   Margin="10,0" VerticalAlignment="Center"/>
+                    </Border>
+
+                    <!-- Content Area -->
+                    <Grid Grid.Row="1">
+                        <!-- Main content -->
+                        <Grid x:Name="LeqContentGrid" Margin="10,5,10,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- LEFT: LEQ Capsule Toggle -->
+                            <ToggleButton x:Name="LeqPowerButton"
+                                          Grid.Column="0"
+                                          Style="{StaticResource CapsuleToggleStyle}"
+                                          Click="LeqPowerButton_Click"
+                                          Checked="LeqPowerButton_Checked"
+                                          Unchecked="LeqPowerButton_Unchecked"
+                                          VerticalAlignment="Center"
+                                          Margin="20,0,0,0"
+                                          AutomationProperties.Name="Toggle Loudness Equalization"
+                                          TabIndex="2"/>
+
+                            <!-- MIDDLE: Release Time Bar -->
+                            <StackPanel Grid.Column="1" x:Name="ReleaseTimeContent" VerticalAlignment="Center" Margin="20,6,10,0">
+                                <Border Height="40"
+                                        Background="#1A1A1A"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="0"
+                                        CornerRadius="0">
+                                    <Grid>
+                                        <Slider x:Name="ReleaseSlider"
+                                                Minimum="2"
+                                                Maximum="7"
+                                                TickFrequency="1"
+                                                IsSnapToTickEnabled="True"
+                                                ValueChanged="ReleaseSlider_ValueChanged"
+                                                Background="Transparent"
+                                                Style="{StaticResource SegmentedBarSliderStyle}"
+                                                AutomationProperties.Name="Release Time"
+                                                TabIndex="3"/>
+                                    </Grid>
+                                </Border>
+
+                                <TextBlock Text="Release Time"
+                                           FontFamily="Segoe UI"
+                                           FontSize="11"
+                                           Foreground="#666"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,-2,0,0"/>
+                            </StackPanel>
+
+                            <!-- RIGHT: Digital Readout -->
+                            <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Right" Width="100" Margin="0,0,0,0">
+                                <!-- Big Number (FIXED WIDTH TO PREVENT JUMPING) -->
+                                <TextBlock x:Name="DigitalReadoutNumber"
+                                           Text="7"
+                                           FontFamily="Segoe UI"
+                                           FontWeight="Bold"
+                                           FontSize="42"
+                                           Foreground="#FFFFFF"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"
+                                           Width="80"
+                                           LineHeight="42"
+                                           Margin="0,0,0,-10"/>
+
+                                <!-- Label (NORMAL, SLOW, etc.) -->
+                                <TextBlock x:Name="DigitalReadoutLabel"
+                                           Text="SLOWEST"
+                                           FontFamily="Segoe UI"
+                                           FontSize="11"
+                                           Foreground="#666666"
+                                           HorizontalAlignment="Center"
+                                           TextAlignment="Center"
+                                           Width="100"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Hazard Overlay - OUTSIDE the column grid, covers everything -->
+                        <Border x:Name="LeqNotDetectedOverlay"
+                                Background="#FF000000"
+                                CornerRadius="0,0,4,4"
+                                Opacity="0"
+                                Visibility="Visible"
+                                IsHitTestVisible="False">
+                            <Border Background="{StaticResource HazardStripePattern}"
+                                    CornerRadius="0,0,4,4">
+                                <Border Background="#80000000" CornerRadius="0,0,4,4">
+                                    <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                                <TextBlock Text="&#x26A0;"
+                                                           Foreground="#FFD700"
+                                                           FontWeight="Bold"
+                                                           FontSize="18"
+                                                           Margin="0,0,8,0"/>
+                                                <TextBlock x:Name="LeqOverlayTitle"
+                                                           Text="LEQ Enhancement Not Detected"
+                                                           Foreground="{StaticResource Brush_StatusRed}"
+                                                           FontWeight="Bold"
+                                                           FontSize="18"
+                                                           HorizontalAlignment="Center"
+                                                           TextAlignment="Center"/>
+                                                <TextBlock Text="&#x26A0;"
+                                                           Foreground="#FFD700"
+                                                           FontWeight="Bold"
+                                                           FontSize="18"
+                                                           Margin="8,0,0,0"/>
+                                            </StackPanel>
+                                            <TextBlock x:Name="LeqOverlaySubtitle"
+                                                       Text="Click 'Install LEQ' button below"
+                                                       Foreground="#FFFFFF"
+                                                       FontSize="11"
+                                                       HorizontalAlignment="Center"
+                                                       TextAlignment="Center"
+                                                       Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Border>
+                        </Border>
+
+                        <!-- Loading Overlay - OUTSIDE the column grid, covers main control area -->
+                        <Border x:Name="LeqLoadingOverlay"
+                                Background="#E0000000"
+                                CornerRadius="0,0,4,4"
+                                Opacity="0"
+                                Visibility="Visible"
+                                IsHitTestVisible="False">
+                            <Border Background="#CC1A1A1A" CornerRadius="0,0,4,4">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <!-- Spinning ring -->
+                                    <Grid Width="30" Height="30" HorizontalAlignment="Center" Margin="0,0,0,8">
+                                        <Ellipse Width="30" Height="30" Stroke="#FFD700" StrokeThickness="2" Opacity="0.2"/>
+                                        <Ellipse Width="30" Height="30" Stroke="#FFD700" StrokeThickness="2" StrokeDashArray="3,6" RenderTransformOrigin="0.5,0.5">
+                                            <Ellipse.RenderTransform>
+                                                <RotateTransform x:Name="LeqSpinnerRotation"/>
+                                            </Ellipse.RenderTransform>
+                                            <Ellipse.Triggers>
+                                                <EventTrigger RoutedEvent="Loaded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="(Ellipse.RenderTransform).(RotateTransform.Angle)"
+                                                                             From="0" To="360" Duration="0:0:1"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </Ellipse.Triggers>
+                                        </Ellipse>
+                                    </Grid>
+                                    <TextBlock x:Name="LoadingOverlayText"
+                                               Text="Installing LEQ..."
+                                               Foreground="#FFD700"
+                                               FontWeight="Bold"
+                                               FontSize="16"
+                                               HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Please wait"
+                                               Foreground="#AAAAAA"
+                                               FontSize="11"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </Border>
+
+                        <!-- ArtTuneKit Overlay - covers LEQ controls when device is managed by ATK -->
+                        <Border x:Name="AtkManagedOverlay"
+                                Background="#D0000000"
+                                CornerRadius="0,0,4,4"
+                                Opacity="0"
+                                Visibility="Visible"
+                                IsHitTestVisible="False">
+                            <Border Background="#C01A1A1A" CornerRadius="0,0,4,4">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock Text="This device is managed by ArtTuneKit"
+                                               Foreground="{StaticResource Brush_StatusRed}"
+                                               FontSize="13"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,0,0,8"/>
+                                    <Button x:Name="OpenArtTuneKitButton" Click="OpenArtTuneKit_Click" Height="26" Padding="12,0" Cursor="Hand" ToolTip="Close LEQ Control Panel and open ArtTuneKit">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Background" Value="#FFD700"/>
+                                                <Setter Property="Foreground" Value="#1A1A1A"/>
+                                                <Setter Property="FontWeight" Value="SemiBold"/>
+                                                <Setter Property="FontSize" Value="12"/>
+                                                <Setter Property="BorderThickness" Value="0"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="BtnBorder" Background="{TemplateBinding Background}" CornerRadius="3" Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="BtnBorder" Property="Background" Value="#FFC000"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsPressed" Value="True">
+                                                                    <Setter TargetName="BtnBorder" Property="Opacity" Value="0.9"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </Button.Style>
+                                        <TextBlock Text="Open ArtTuneKit" FontSize="12" FontWeight="SemiBold"/>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Row="4" Margin="10,0,10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="2,0">
+                    <Button x:Name="InstallLeqButton"
+                            Click="InstallLeqButton_Click"
+                            Style="{StaticResource GlowingInstallButtonStyle}"
+                            ToolTip="Install or uninstall Loudness Equalization"
+                            TabIndex="4">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock x:Name="InstallLeqIcon" Text="&#x1F4E5;" FontFamily="Segoe UI Emoji" FontSize="14" HorizontalAlignment="Center"/>
+                            <TextBlock x:Name="InstallLeqText" Text="Install LEQ" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+
+                <Button Grid.Column="1" Click="SoundSettingsButton_Click" Height="45" Style="{StaticResource InstallLeqButtonStyle}" Margin="2,0,2,5" ToolTip="Open Windows Sound Settings" AutomationProperties.Name="Open Windows Sound Settings" TabIndex="5">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="&#x229E;" FontSize="14" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Sound Settings" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Grid.Column="2" x:Name="RestartAudioButton" Click="RestartAudioButton_Click" Height="45" Style="{StaticResource InstallLeqButtonStyle}" Margin="2,0,2,5" ToolTip="Restart Windows Audio Service" TabIndex="6">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="&#x21BB;" FontSize="14" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Restart Audio" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+
+                <Button Grid.Column="3" x:Name="EapoDeviceSelectorButton" Click="LaunchDeviceSelector_Click" Height="45" Style="{StaticResource NeutralButtonStyle}" Margin="2,0,2,5" ToolTip="Download Equalizer APO" TabIndex="7">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock x:Name="EapoButtonIcon" Text="&#x2B07;" FontSize="14" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="EapoButtonText" Text="Get E-APO" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <Grid Grid.Row="5" Margin="10,5,10,0">
+                <Button x:Name="ResetDeviceButton"
+                        Click="ResetDeviceButton_Click"
+                        Height="45"
+                        Style="{StaticResource InstallLeqButtonStyle}"
+                        Margin="4,0,4,5"
+                        ToolTip="Reset selected device to defaults"
+                        TabIndex="8">
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="&#x1F504;" FontFamily="Segoe UI Emoji" FontSize="16" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Reset Device" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <Grid Grid.Row="6" Margin="10,0,10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <CheckBox x:Name="CleanInstallCheck" Content="Clean Install" Style="{StaticResource GoldCheckBoxStyle}" FontSize="12" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="4,0" ToolTip="Removes old registry keys before installing" IsEnabled="False" Opacity="0.5"/>
+            </Grid>
+
+            <!-- CONSOLE - Mini-Window with Header Bar -->
+            <Border Grid.Row="7" CornerRadius="4" BorderBrush="#333" BorderThickness="1" Background="#050505" Margin="10,0,10,8" Padding="0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="24"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header Bar -->
+                    <Border Grid.Row="0" Background="#151515">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="Console"
+                                       FontSize="10" Foreground="#666"
+                                       Margin="10,0" VerticalAlignment="Center"/>
+
+                            <Button Grid.Column="1" x:Name="ConsoleToggleButton" Click="ConsoleToggleButton_Click" Height="24" Width="24" Background="Transparent" BorderThickness="0" Cursor="Hand" Foreground="#444" ToolTip="Toggle Console" AutomationProperties.Name="Toggle Console" TabIndex="9">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="Border"
+                                                Background="{TemplateBinding Background}"
+                                                BorderThickness="0"
+                                                CornerRadius="2">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="Border" Property="Background" Value="#333333"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                                <TextBlock x:Name="ConsoleToggleIcon" FontSize="16" HorizontalAlignment="Center" Foreground="#666666">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Text" Value="&#x25B2;"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Visibility, ElementName=ConsoleList}" Value="Visible">
+                                                    <Setter Property="Text" Value="&#x25BC;"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Button>
+                        </Grid>
+                    </Border>
+
+                    <!-- Content Area -->
+                    <ListBox Grid.Row="1" x:Name="ConsoleList" Style="{StaticResource ConsoleListStyle}" Height="140" Margin="0" Visibility="Visible">
+                    <ListBox.Resources>
+                        <Style TargetType="ScrollBar">
+                            <Setter Property="Width" Value="12"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ScrollBar">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <!-- Line Up/Down Buttons -->
+                                            <RepeatButton Grid.Row="0" Command="ScrollBar.LineUpCommand" Background="#333333" BorderThickness="0" Height="12">
+                                                <Path Data="M 0 4 L 8 4 L 4 0 Z" Fill="#AAAAAA" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </RepeatButton>
+
+                                            <!-- Track with Thumb -->
+                                            <Track x:Name="PART_Track" Grid.Row="1" IsDirectionReversed="True">
+                                                <Track.Thumb>
+                                                    <Thumb Background="#666666" BorderBrush="#888888" BorderThickness="1">
+                                                        <Thumb.Template>
+                                                            <ControlTemplate TargetType="Thumb">
+                                                                <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4"/>
+                                                            </ControlTemplate>
+                                                        </Thumb.Template>
+                                                    </Thumb>
+                                                </Track.Thumb>
+                                                <Track.IncreaseRepeatButton>
+                                                    <RepeatButton Command="ScrollBar.PageDownCommand" Background="#1A1A1A" BorderThickness="0"/>
+                                                </Track.IncreaseRepeatButton>
+                                                <Track.DecreaseRepeatButton>
+                                                    <RepeatButton Command="ScrollBar.PageUpCommand" Background="#1A1A1A" BorderThickness="0"/>
+                                                </Track.DecreaseRepeatButton>
+                                            </Track>
+
+                                            <!-- Line Down Button -->
+                                            <RepeatButton Grid.Row="2" Command="ScrollBar.LineDownCommand" Background="#333333" BorderThickness="0" Height="12">
+                                                <Path Data="M 0 0 L 4 4 L 8 0 Z" Fill="#AAAAAA" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </RepeatButton>
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="Orientation" Value="Horizontal">
+                                                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.Resources>
+                </ListBox>
+            </Grid>
+        </Border>
+
+        <!-- LOADING OVERLAY - Covers everything during startup -->
+        <Border x:Name="LoadingOverlay"
+                Grid.RowSpan="11"
+                Background="#1A1A1A"
+                CornerRadius="8"
+                Visibility="Visible"
+                IsHitTestVisible="False"
+                Panel.ZIndex="999">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <!-- Title with pulsing glow -->
+                <TextBlock x:Name="StartupTitleText"
+                           Text="LEQ Control Panel"
+                           Foreground="#FFD700"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,18">
+                    <TextBlock.Effect>
+                        <DropShadowEffect x:Name="StartupTitleGlow"
+                                          Color="#FFD700"
+                                          BlurRadius="0"
+                                          ShadowDepth="0"
+                                          Direction="0"
+                                          Opacity="0.3"/>
+                    </TextBlock.Effect>
+                    <TextBlock.Triggers>
+                        <EventTrigger RoutedEvent="Loaded">
+                            <BeginStoryboard>
+                                <Storyboard RepeatBehavior="Forever">
+                                    <DoubleAnimation
+                                        Storyboard.TargetName="StartupTitleGlow"
+                                        Storyboard.TargetProperty="BlurRadius"
+                                        From="0" To="15"
+                                        Duration="0:0:0.8"
+                                        AutoReverse="True">
+                                        <DoubleAnimation.EasingFunction>
+                                            <SineEase EasingMode="EaseInOut"/>
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                    <DoubleAnimation
+                                        Storyboard.TargetName="StartupTitleGlow"
+                                        Storyboard.TargetProperty="Opacity"
+                                        From="0.3" To="1"
+                                        Duration="0:0:0.8"
+                                        AutoReverse="True">
+                                        <DoubleAnimation.EasingFunction>
+                                            <SineEase EasingMode="EaseInOut"/>
+                                        </DoubleAnimation.EasingFunction>
+                                    </DoubleAnimation>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                    </TextBlock.Triggers>
+                </TextBlock>
+
+                <!-- Loading bar with shimmer -->
+                <Border Width="200" Height="4" Background="#333333" CornerRadius="2">
+                    <Grid>
+                        <Border x:Name="LoadingBarFill"
+                                Background="#F3C06B"
+                                CornerRadius="2"
+                                HorizontalAlignment="Stretch"/>
+                        <Border x:Name="LoadingBarShimmer"
+                                Background="White"
+                                CornerRadius="2"
+                                HorizontalAlignment="Stretch"
+                                Opacity="0">
+                            <Border.Triggers>
+                                <EventTrigger RoutedEvent="Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation
+                                                Storyboard.TargetProperty="Opacity"
+                                                From="0.3" To="1"
+                                                Duration="0:0:0.6"
+                                                AutoReverse="True">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <SineEase EasingMode="EaseInOut"/>
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Border.Triggers>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <TextBlock Text="Loading..."
+                           Foreground="#555555"
+                           FontSize="11"
+                           HorizontalAlignment="Center"
+                           Margin="0,10,0,0"/>
+            </StackPanel>
+        </Border>
+        </Grid>
+    </Border>
+</Window>

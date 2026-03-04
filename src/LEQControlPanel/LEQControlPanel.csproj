@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>LEQControlPanel</AssemblyName>
+    <RootNamespace>LEQControlPanel</RootNamespace>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+    <DisableWinExeOutputInference>false</DisableWinExeOutputInference>
+    <StartupObject>LEQControlPanel.Program</StartupObject>
+    <Product>LEQ Control Panel</Product>
+    <Company>ArtIsWar LLC</Company>
+    <Description>Standalone LEQ registry control tool for instant Loudness Equalization toggling without audio service restarts</Description>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Copyright>Copyright © 2025-2026 ArtIsWar LLC</Copyright>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="icon.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\scripts\Modules\LEQ-Engine.ps1">
+      <LogicalName>LEQControlPanel.LEQ-Engine.ps1</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\LICENSE">
+      <LogicalName>LEQControlPanel.LICENSE</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.4.6" />
+  </ItemGroup>
+
+</Project>
