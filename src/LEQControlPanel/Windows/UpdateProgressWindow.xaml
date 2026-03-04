@@ -1,0 +1,65 @@
+<!-- LEQ Control Panel — Copyright (c) 2025-2026 ArtIsWar LLC -->
+<!-- Licensed under GPL-3.0. See LICENSE file for details. -->
+<Window x:Class="LEQControlPanel.Windows.UpdateProgressWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        Width="420"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        Topmost="True">
+
+    <Border Background="{StaticResource Brush_BackgroundDark}" BorderBrush="{StaticResource Brush_BorderDark}" BorderThickness="1" CornerRadius="8">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/> <!-- Title bar -->
+                <RowDefinition Height="*"/>    <!-- Content -->
+                <RowDefinition Height="Auto"/> <!-- Button -->
+            </Grid.RowDefinitions>
+
+            <!-- Title Bar -->
+            <Border Grid.Row="0" Background="{StaticResource Brush_TitleBar}" CornerRadius="8,8,0,0" MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid Margin="15,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="⬇" FontSize="18" Foreground="{StaticResource Brush_Accent}" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="Downloading Update" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource Brush_TextWhite}" VerticalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- Progress Content -->
+            <StackPanel Grid.Row="1" Margin="20,18,20,10">
+                <TextBlock x:Name="VersionText"
+                           Text="Downloading..."
+                           Foreground="{StaticResource Brush_ForegroundMuted}"
+                           FontSize="13"
+                           Margin="0,0,0,14"/>
+
+                <!-- Progress bar (matches SplashWindow style) -->
+                <Border Height="4" Background="{StaticResource Brush_BorderDark}" CornerRadius="2">
+                    <Border x:Name="ProgressFill"
+                            Background="#F3C06B"
+                            CornerRadius="2"
+                            HorizontalAlignment="Left"
+                            Width="0"/>
+                </Border>
+
+                <TextBlock x:Name="StatusText"
+                           Text="0%"
+                           Foreground="#777777"
+                           FontSize="11"
+                           Margin="0,8,0,0"/>
+            </StackPanel>
+
+            <!-- Cancel Button -->
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="20,10,20,15">
+                <Button Content="Cancel" Style="{StaticResource SecondaryButtonStyle}" Click="CancelButton_Click"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

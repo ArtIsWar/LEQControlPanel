@@ -1,0 +1,103 @@
+<!-- LEQ Control Panel — Copyright (c) 2025-2026 ArtIsWar LLC -->
+<!-- Licensed under GPL-3.0. See LICENSE file for details. -->
+<Window x:Class="LEQControlPanel.Dialogs.ResetDeviceWarningDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Reset Device"
+        Width="450"
+        SizeToContent="Height"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Topmost="True">
+
+    <Window.Resources>
+        <Style TargetType="Button" BasedOn="{StaticResource DialogOpacityButtonStyle}"/>
+        <Style TargetType="CheckBox" BasedOn="{StaticResource DialogCheckBoxStyle}"/>
+    </Window.Resources>
+
+    <Border Background="{StaticResource Brush_BackgroundDark}"
+            BorderBrush="{StaticResource Brush_BorderDark}"
+            BorderThickness="1"
+            CornerRadius="8">
+        <Grid Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>  <!-- Icon + Title -->
+                <RowDefinition Height="Auto"/>  <!-- Warning Message -->
+                <RowDefinition Height="Auto"/>  <!-- Checkbox -->
+                <RowDefinition Height="Auto"/>  <!-- Buttons -->
+            </Grid.RowDefinitions>
+
+            <!-- Header with Warning Icon -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
+                <TextBlock Text="&#x26A0;&#xFE0F;" FontSize="28" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                <TextBlock Text="Reset Device"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource Brush_Accent}"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+
+            <!-- Warning Message -->
+            <Border Grid.Row="1"
+                    Background="{StaticResource Brush_PanelBg}"
+                    BorderBrush="{StaticResource Brush_BorderDark}"
+                    BorderThickness="1"
+                    CornerRadius="4"
+                    Padding="12"
+                    Margin="0,0,0,15">
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource Brush_ForegroundMuted}" FontSize="13" LineHeight="20">
+                    <Run>Resetting removes this device from Windows and re-detects it. This restores the default device name but may require driver reinstallation on some hardware.</Run>
+                    <LineBreak/><LineBreak/>
+                    <Run>Continue with caution.</Run>
+                </TextBlock>
+            </Border>
+
+            <!-- Don't Show Again Checkbox -->
+            <CheckBox x:Name="DontShowAgainCheck"
+                      Grid.Row="2"
+                      Content="Don't show this warning again"
+                      Foreground="{StaticResource Brush_TitleGrey}"
+                      FontSize="11"
+                      Margin="0,0,0,15"
+                      VerticalAlignment="Center"
+                      TabIndex="0"/>
+
+            <!-- Buttons -->
+            <Grid Grid.Row="3">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Button x:Name="CancelButton"
+                        Grid.Column="0"
+                        Content="Cancel"
+                        Click="CancelButton_Click"
+                        Height="36"
+                        Margin="0,0,5,0"
+                        Background="{StaticResource Brush_BorderDark}"
+                        Foreground="{StaticResource Brush_ForegroundMuted}"
+                        BorderBrush="{StaticResource Brush_BorderMedium}"
+                        FontWeight="SemiBold"
+                        Cursor="Hand"
+                        TabIndex="1"/>
+
+                <Button x:Name="ProceedButton"
+                        Grid.Column="1"
+                        Content="Continue"
+                        Click="ProceedButton_Click"
+                        Height="36"
+                        Margin="5,0,0,0"
+                        Background="{StaticResource Brush_Accent}"
+                        Foreground="{StaticResource Brush_BackgroundDark}"
+                        BorderThickness="0"
+                        FontWeight="SemiBold"
+                        Cursor="Hand"
+                        TabIndex="2"/>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

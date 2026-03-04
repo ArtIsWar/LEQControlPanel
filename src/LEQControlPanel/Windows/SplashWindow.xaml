@@ -1,0 +1,124 @@
+<!-- LEQ Control Panel — Copyright (c) 2025-2026 ArtIsWar LLC -->
+<!-- Licensed under GPL-3.0. See LICENSE file for details. -->
+<Window x:Class="LEQControlPanel.Windows.SplashWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Loading"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        Background="Transparent"
+        Width="580"
+        Height="516">
+
+    <Window.Resources>
+        <!-- Pulsing glow on title text -->
+        <Storyboard x:Key="GlowPulseAnimation" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="TitleGlow"
+                             Storyboard.TargetProperty="BlurRadius"
+                             From="0" To="15"
+                             Duration="0:0:0.8"
+                             AutoReverse="True">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="TitleGlow"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0.3" To="1"
+                             Duration="0:0:0.8"
+                             AutoReverse="True">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+
+        <!-- Shimmer pulse on loading bar -->
+        <Storyboard x:Key="BarShimmerAnimation" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="LoadingBarShimmer"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0.3" To="1"
+                             Duration="0:0:0.6"
+                             AutoReverse="True">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+
+        <!-- Fade-out for dismissal -->
+        <Storyboard x:Key="FadeOutAnimation">
+            <DoubleAnimation Storyboard.TargetName="RootBorder"
+                             Storyboard.TargetProperty="Opacity"
+                             From="1" To="0"
+                             Duration="0:0:0.25">
+                <DoubleAnimation.EasingFunction>
+                    <CubicEase EasingMode="EaseIn"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+    </Window.Resources>
+
+    <Border x:Name="RootBorder"
+            Background="{StaticResource Brush_BackgroundDark}"
+            CornerRadius="12"
+            BorderBrush="{StaticResource Brush_BorderDark}"
+            BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="20"
+                              ShadowDepth="4"
+                              Direction="270"
+                              Color="Black"
+                              Opacity="0.5"/>
+        </Border.Effect>
+
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+            <!-- Title with pulsing glow -->
+            <TextBlock x:Name="TitleText"
+                       Text="LEQ Control Panel"
+                       Foreground="{StaticResource Brush_Accent}"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       FontFamily="Segoe UI"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,18">
+                <TextBlock.Effect>
+                    <DropShadowEffect x:Name="TitleGlow"
+                                      Color="#FFD700"
+                                      BlurRadius="0"
+                                      ShadowDepth="0"
+                                      Direction="0"
+                                      Opacity="0.3"/>
+                </TextBlock.Effect>
+            </TextBlock>
+
+            <!-- Loading bar with shimmer -->
+            <Border Width="200" Height="4" Background="{StaticResource Brush_BorderDark}" CornerRadius="2">
+                <Grid>
+                    <Border x:Name="LoadingBarFill"
+                            Background="#F3C06B"
+                            CornerRadius="2"
+                            HorizontalAlignment="Stretch"/>
+                    <Border x:Name="LoadingBarShimmer"
+                            Background="White"
+                            CornerRadius="2"
+                            HorizontalAlignment="Stretch"
+                            Opacity="0"/>
+                </Grid>
+            </Border>
+
+            <!-- Status text -->
+            <TextBlock x:Name="StatusText"
+                       Text="Loading..."
+                       Foreground="#555555"
+                       FontSize="11"
+                       FontFamily="Segoe UI"
+                       HorizontalAlignment="Center"
+                       Margin="0,10,0,0"/>
+        </StackPanel>
+    </Border>
+</Window>

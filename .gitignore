@@ -1,0 +1,62 @@
+## Build results
+[Bb]in/
+[Oo]bj/
+[Pp]ublish/
+out/
+
+## User-specific / IDE
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docuser
+*.DotSettings.user
+
+## VS Code
+.vscode/
+
+## Build / publish artifacts
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.exe
+*.dll
+*.pdb
+*_wpftmp.csproj
+
+## NuGet
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+## MSBuild
+*.log
+msbuild*.wrn
+msbuild*.err
+msbuild*.binlog
+
+## Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+## Rider / JetBrains
+.idea/
+*.sln.iml
+
+## Misc
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+temp/
+tmp/
+
+## Claude Code
+.claude/
