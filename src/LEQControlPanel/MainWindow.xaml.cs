@@ -657,6 +657,12 @@ namespace LEQControlPanel
                 if (!installed)
                 {
                     Log("LEQ installation failed (driver may not support enhancements).");
+                    var diag = _audioService.LastInstallDiagnostics;
+                    if (!string.IsNullOrWhiteSpace(diag))
+                    {
+                        foreach (var line in diag.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                            Log($"  PS: {line.TrimEnd()}");
+                    }
 
                     // Check if Clean Install was already tried
                     bool wasCleanInstall = CleanInstallCheck?.IsChecked == true;

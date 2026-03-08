@@ -19,6 +19,12 @@ internal sealed class AudioService
 {
     private readonly InitialSessionState _initialState;
     private readonly bool _isInitialized;
+    private string _lastInstallDiag = "";
+
+    /// <summary>
+    /// Diagnostic output from the last Install-LEQRegistry call (PS output + errors).
+    /// </summary>
+    public string LastInstallDiagnostics => _lastInstallDiag;
 
     public AudioService()
     {
@@ -285,6 +291,10 @@ internal sealed class AudioService
                         return (bool?)null;
                     }
 
+                    // Clear errors from Get-AudioDeviceInfo so HadErrors only reflects the toggle
+                    ps.Streams.Error.Clear();
+                    ps.Streams.Warning.Clear();
+
                     // Get current state
                     bool currentEnabled = Convert.ToBoolean(targetDevice.Properties["LoudnessEnabled"]?.Value ?? false);
                     int releaseTime = Convert.ToInt32(targetDevice.Properties["ReleaseTime"]?.Value ?? 4);
@@ -332,22 +342,27 @@ internal sealed class AudioService
                         }
                     }
 
+                    // Log any errors for diagnostics, but don't use HadErrors as the
+                    // sole success indicator — non-terminating errors from Add-Type or
+                    // Restart-Service can pollute the error stream even on success.
                     if (ps.HadErrors)
                     {
                         #if DEBUG
-                        Debug.WriteLine($"[LEQ TOGGLE] Errors:");
-                        #endif
+                        Debug.WriteLine($"[LEQ TOGGLE] Error stream (non-fatal):");
                         foreach (var error in ps.Streams.Error)
                         {
-                            #if DEBUG
-                            Debug.WriteLine($"LEQ TOGGLE ERROR DETAIL: {error.ToString()}");
-                            Debug.WriteLine($"LEQ TOGGLE ERROR EXCEPTION: {error.Exception?.Message}");
-                            if (error.Exception != null)
-                            {
-                                Debug.WriteLine($"LEQ TOGGLE ERROR STACK TRACE: {error.Exception.StackTrace}");
-                            }
-                            #endif
+                            Debug.WriteLine($"  {error}");
                         }
+                        #endif
+                    }
+
+                    // Verify the toggle by reading the registry directly
+                    var actualState = ReadLeqStateFromRegistry(deviceId);
+                    if (actualState != newEnabled)
+                    {
+                        #if DEBUG
+                        Debug.WriteLine($"[LEQ TOGGLE] Registry verify failed: expected={newEnabled}, actual={actualState}");
+                        #endif
                         return (bool?)null;
                     }
 
@@ -508,6 +523,10 @@ internal sealed class AudioService
                         return false;
                     }
 
+                    // Clear errors from Get-AudioDeviceInfo so HadErrors only reflects the install
+                    ps.Streams.Error.Clear();
+                    ps.Streams.Warning.Clear();
+
                     // Install LEQ
                     ps.AddCommand("Install-LEQRegistry")
                       .AddParameter("Device", targetDevice)
@@ -518,38 +537,29 @@ internal sealed class AudioService
                         ps.AddParameter("Force", true);
                     }
 
-                    ps.Invoke();
+                    var installResults = ps.Invoke();
 
-                    if (ps.HadErrors)
-                    {
-                        #if DEBUG
-                        Debug.WriteLine($"[LEQ INSTALL] Errors:");
-                        #endif
-                        foreach (var error in ps.Streams.Error)
-                        {
-                            #if DEBUG
-                            Debug.WriteLine($"LEQ INSTALL ERROR DETAIL: {error.ToString()}");
-                            Debug.WriteLine($"LEQ INSTALL ERROR EXCEPTION: {error.Exception?.Message}");
-                            if (error.Exception != null)
-                            {
-                                Debug.WriteLine($"LEQ INSTALL ERROR STACK TRACE: {error.Exception.StackTrace}");
-                            }
-                            #endif
-                        }
-                        return false;
-                    }
+                    // Collect all PS output for diagnostics
+                    var psOutput = new System.Text.StringBuilder();
+                    foreach (var r in installResults)
+                        psOutput.AppendLine(r?.ToString());
+                    foreach (var e in ps.Streams.Error)
+                        psOutput.AppendLine($"[PS ERROR] {e}");
+                    _lastInstallDiag = psOutput.ToString();
 
-                    #if DEBUG
-                    Debug.WriteLine($"[LEQ INSTALL] Success");
-                    #endif
-                    return true;
+                    // Check the actual return value from Install-LEQRegistry ($true/$false)
+                    // Don't rely on ps.HadErrors — non-terminating errors from Add-Type
+                    // or Restart-Service pollute the error stream even on success.
+                    bool success = installResults.Count > 0
+                        && installResults[installResults.Count - 1]?.BaseObject is bool b
+                        && b;
+
+                    return success;
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                #if DEBUG
-                Debug.WriteLine("[LEQ INSTALL] Exception occurred");
-                #endif
+                _lastInstallDiag = $"EXCEPTION: {ex.GetType().Name}: {ex.Message}";
                 return false;
             }
         });

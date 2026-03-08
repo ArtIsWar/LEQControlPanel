@@ -1,4 +1,4 @@
-# LEQ Control Panel — Copyright (c) 2025-2026 ArtIsWar LLC
+# LEQ Control Panel - Copyright (c) 2025-2026 ArtIsWar LLC
 # Licensed under GPL-3.0. See LICENSE file for details.
 
 Set-StrictMode -Version Latest
@@ -111,6 +111,217 @@ function Start-ProcessWithTimeout {
     return $proc
 }
 
+function Grant-RegistryKeyAccess {
+    <#
+    .SYNOPSIS
+        Grants the current user FullControl on a registry key.
+    .DESCRIPTION
+        MMDevices FxProperties keys can have restrictive ACLs (especially on
+        Windows 11 24H2+) that cause regedit.exe /s to silently fail even when
+        running elevated. This grants explicit write access before reg imports.
+
+        Non-fatal by design - if the grant fails, the caller should still
+        attempt the write since many systems have permissive ACLs already.
+    .PARAMETER Path
+        The PowerShell registry path (e.g. HKLM:\...\FxProperties)
+    .OUTPUTS
+        [bool] True if grant succeeded, False if it failed (caller should proceed anyway)
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path
+    )
+
+    try {
+        $acl = Get-Acl -LiteralPath $Path
+        $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+
+        $rule = New-Object System.Security.AccessControl.RegistryAccessRule(
+            $currentUser,
+            [System.Security.AccessControl.RegistryRights]::FullControl,
+            [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
+            [System.Security.AccessControl.PropagationFlags]::None,
+            [System.Security.AccessControl.AccessControlType]::Allow
+        )
+
+        $acl.AddAccessRule($rule)
+        Set-Acl -LiteralPath $Path -AclObject $acl
+
+        Write-Verbose "[ACL] Granted write access to $Path"
+        return $true
+    } catch {
+        Write-Verbose "[ACL] Failed to grant access to ${Path}: $_"
+        return $false
+    }
+}
+
+# =============================================================================
+# P/Invoke Registry Helpers
+# =============================================================================
+# On some Windows 25H2 systems, the MMDevices registry tree denies
+# KEY_CREATE_SUB_KEY to Administrators. All standard tools (regedit, reg.exe,
+# PowerShell Set-ItemProperty, .NET OpenSubKey) request KEY_WRITE which
+# bundles KEY_SET_VALUE | KEY_CREATE_SUB_KEY | READ_CONTROL. Because
+# KEY_CREATE_SUB_KEY is denied, the open fails — even though only
+# KEY_SET_VALUE is needed. These helpers open with minimal access rights.
+# =============================================================================
+
+function Initialize-RegHelper {
+    # Check if the type already exists in the AppDomain (from a previous runspace)
+    if ([System.AppDomain]::CurrentDomain.GetAssemblies() | Where-Object {
+        try { $_.GetType('AIWRegHelper', $false) } catch { $null }
+    }) {
+        return
+    }
+
+    Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public class AIWRegHelper
+{
+    private const uint KEY_SET_VALUE = 0x0002;
+    private static readonly IntPtr HKLM = new IntPtr(unchecked((int)0x80000002));
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int RegOpenKeyEx(IntPtr hKey, string subKey, uint options, uint sam, out IntPtr result);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int RegSetValueEx(IntPtr hKey, string name, int reserved, uint type, byte[] data, int cbData);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int RegDeleteValue(IntPtr hKey, string name);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern int RegCloseKey(IntPtr hKey);
+
+    public static int WriteValue(string subKey, string name, uint type, byte[] data)
+    {
+        IntPtr hKey;
+        int rc = RegOpenKeyEx(HKLM, subKey, 0, KEY_SET_VALUE, out hKey);
+        if (rc != 0) return rc;
+        rc = RegSetValueEx(hKey, name, 0, type, data, data.Length);
+        RegCloseKey(hKey);
+        return rc;
+    }
+
+    public static int DeleteValue(string subKey, string name)
+    {
+        IntPtr hKey;
+        int rc = RegOpenKeyEx(HKLM, subKey, 0, KEY_SET_VALUE, out hKey);
+        if (rc != 0) return rc;
+        rc = RegDeleteValue(hKey, name);
+        RegCloseKey(hKey);
+        return rc;
+    }
+}
+'@ -ErrorAction Stop
+}
+
+function ConvertTo-HklmSubKey {
+    <#
+    .SYNOPSIS
+        Converts a PowerShell HKLM:\ path to a plain HKLM subkey path.
+    #>
+    param([string]$Path)
+    return $Path -replace '^HKLM:\\', '' -replace '^HKEY_LOCAL_MACHINE\\', ''
+}
+
+function Write-RegistryValues {
+    <#
+    .SYNOPSIS
+        Writes registry values using Win32 P/Invoke with minimal KEY_SET_VALUE access.
+    .DESCRIPTION
+        Bypasses the KEY_CREATE_SUB_KEY requirement that blocks standard tools on
+        some Windows 25H2 systems where MMDevices ACLs deny KEY_CREATE_SUB_KEY.
+    .PARAMETER Path
+        PowerShell registry path (e.g. HKLM:\...\FxProperties) or plain HKLM subkey.
+    .PARAMETER Values
+        Array of hashtables: @{ Name = "valueName"; Type = [uint32]; Data = [byte[]] }
+        Type constants: 1 = REG_SZ, 3 = REG_BINARY, 7 = REG_MULTI_SZ
+    .OUTPUTS
+        [bool] True if all writes succeeded.
+    #>
+    param(
+        [Parameter(Mandatory)] [string]$Path,
+        [Parameter(Mandatory)] [hashtable[]]$Values
+    )
+
+    try {
+        Initialize-RegHelper
+    } catch {
+        Write-Output "[P/INVOKE] Failed to initialize helper: $_"
+        return $false
+    }
+
+    $subKey = ConvertTo-HklmSubKey -Path $Path
+    $allOk = $true
+
+    foreach ($entry in $Values) {
+        $name = $entry.Name
+        $type = [uint32]$entry.Type
+        $data = [byte[]]$entry.Data
+
+        $rc = [AIWRegHelper]::WriteValue($subKey, $name, $type, $data)
+        if ($rc -ne 0) {
+            Write-Output "[P/INVOKE] Failed to write '$name': error $rc (0x$($rc.ToString('X')))"
+            $allOk = $false
+        }
+    }
+
+    return $allOk
+}
+
+function Remove-RegistryValues {
+    <#
+    .SYNOPSIS
+        Deletes registry values using Win32 P/Invoke with minimal KEY_SET_VALUE access.
+    .PARAMETER Path
+        PowerShell registry path or plain HKLM subkey.
+    .PARAMETER Names
+        Array of value names to delete.
+    .OUTPUTS
+        [bool] True if all deletes succeeded.
+    #>
+    param(
+        [Parameter(Mandatory)] [string]$Path,
+        [Parameter(Mandatory)] [string[]]$Names
+    )
+
+    try {
+        Initialize-RegHelper
+    } catch {
+        Write-Output "[P/INVOKE] Failed to initialize helper: $_"
+        return $false
+    }
+
+    $subKey = ConvertTo-HklmSubKey -Path $Path
+    $allOk = $true
+
+    foreach ($name in $Names) {
+        $rc = [AIWRegHelper]::DeleteValue($subKey, $name)
+        if ($rc -ne 0 -and $rc -ne 2) {  # 2 = ERROR_FILE_NOT_FOUND (value doesn't exist, OK)
+            Write-Output "[P/INVOKE] Failed to delete '$name': error $rc (0x$($rc.ToString('X')))"
+            $allOk = $false
+        }
+    }
+
+    return $allOk
+}
+
+function ConvertFrom-HexString {
+    <#
+    .SYNOPSIS
+        Converts a comma-separated hex string to a byte array.
+    .EXAMPLE
+        ConvertFrom-HexString "0b,00,00,00,01,00,00,00,ff,ff,00,00"
+    #>
+    param([Parameter(Mandatory)] [string]$Hex)
+    return [byte[]]($Hex.Split(',') | ForEach-Object { [byte]("0x$_") })
+}
+
 function Ensure-EnhancementCapability {
     <#
     .SYNOPSIS
@@ -161,9 +372,21 @@ function Ensure-EnhancementCapability {
         $clsidPath = "HKLM:\SOFTWARE\Classes\CLSID\$clsid"
         $inprocPath = "$clsidPath\InprocServer32"
 
-        # Skip if already registered
-        if (Test-Path $clsidPath) {
-            Write-Verbose "$name CLSID already registered"
+        # Skip if already registered with correct values
+        $needsFix = $false
+        if (-not (Test-Path $inprocPath)) {
+            $needsFix = $true
+        } else {
+            $existing = Get-ItemProperty -LiteralPath $inprocPath -ErrorAction SilentlyContinue
+            $currentDefault = if ($existing) { $existing.'(Default)' } else { $null }
+            $currentThreading = if ($existing) { $existing.ThreadingModel } else { $null }
+            if ($currentDefault -ne $dllPath -or $currentThreading -ne 'Both') {
+                $needsFix = $true
+            }
+        }
+
+        if (-not $needsFix) {
+            Write-Verbose "$name CLSID already registered correctly"
             continue
         }
 
@@ -203,7 +426,7 @@ function Clear-CompositeFxKeys {
         (slots 5/6/7 etc.) which declare supported audio processing modes. Deleting
         those breaks audio routing through the APO chain.
 
-        Uses .reg file import via regedit.exe due to MMDevices registry ACL restrictions.
+        Uses Win32 P/Invoke with KEY_SET_VALUE access, falling back to regedit.exe if needed.
 
     .PARAMETER DeviceGuid
         The GUID of the audio render device (without braces, or with braces - both work).
@@ -254,32 +477,46 @@ function Clear-CompositeFxKeys {
     Write-Output "[COMPOSITE FX] Found $($compositeFxKeys.Count) CompositeFX keys on device $DeviceGuid"
     Write-Output "[COMPOSITE FX] Removing to enable LFX/GFX APO slots..."
 
-    # Build .reg file to delete CompositeFX keys
-    # Using .reg file because MMDevices has special ACLs that block standard PowerShell cmdlets
-    $regKeyPath = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render\{$DeviceGuid}\FxProperties"
+    $keyNames = @($compositeFxKeys | ForEach-Object { $_.Name })
+    foreach ($n in $keyNames) { Write-Verbose "  Will delete: $n" }
 
-    $regContent = "Windows Registry Editor Version 5.00`r`n`r`n"
-    $regContent += "[$regKeyPath]`r`n"
+    # --- Attempt P/Invoke delete (KEY_SET_VALUE only) ---
+    Initialize-RegHelper
+    $pinvokeOk = $true
 
-    foreach ($key in $compositeFxKeys) {
-        $keyName = $key.Name
-        $regContent += "`"$keyName`"=-`r`n"
-        Write-Verbose "  Will delete: $keyName"
+    Write-Output "[COMPOSITE FX] Deleting values via P/Invoke..."
+    if (-not (Remove-RegistryValues -Path $fxPath -Names $keyNames)) {
+        Write-Output "[COMPOSITE FX] [WARNING] P/Invoke delete failed"
+        $pinvokeOk = $false
     }
 
-    # Write and import .reg file
+    if ($pinvokeOk) {
+        Write-Output "[COMPOSITE FX] [OK] CompositeFX keys removed via P/Invoke"
+        return $true
+    }
+
+    # --- Fallback: regedit /s ---
+    Write-Output "[COMPOSITE FX] Falling back to regedit /s..."
+
+    Grant-RegistryKeyAccess -Path $fxPath | Out-Null
+
+    $regKeyPath = "HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render\{$DeviceGuid}\FxProperties"
+    $regContent = "Windows Registry Editor Version 5.00`r`n`r`n"
+    $regContent += "[$regKeyPath]`r`n"
+    foreach ($n in $keyNames) {
+        $regContent += "`"$n`"=-`r`n"
+    }
+
     $regFile = Join-Path $env:TEMP "AIW_ClearCompositeFx_$([System.IO.Path]::GetRandomFileName()).reg"
     try {
         $regContent | Out-File -FilePath $regFile -Encoding ASCII -Force
-        Write-Verbose "[COMPOSITE FX] Created temp file: $regFile"
-
         $proc = Start-Process -FilePath "$env:SystemRoot\regedit.exe" -ArgumentList '/s', $regFile -Verb RunAs -Wait -PassThru -WindowStyle Hidden
 
         if ($proc.ExitCode -eq 0) {
-            Write-Output "[COMPOSITE FX] [OK] CompositeFX keys removed successfully"
+            Write-Output "[COMPOSITE FX] [OK] CompositeFX keys removed via regedit fallback"
             return $true
         } else {
-            Write-Output "[COMPOSITE FX] [ERROR] Registry import failed with exit code: $($proc.ExitCode)"
+            Write-Output "[COMPOSITE FX] [ERROR] regedit fallback failed with exit code: $($proc.ExitCode)"
             return $false
         }
     }
@@ -452,7 +689,7 @@ function Get-AudioDeviceInfo {
 
         # Read device state from registry
         # DeviceState: 1=Active/Ready, 2=Disabled, 4=NotPresent, 8=Unplugged
-        # High bits (e.g. 0x10000000) indicate non-ready states — match on exact value
+        # High bits (e.g. 0x10000000) indicate non-ready states - match on exact value
         $deviceInfo = Get-ItemProperty -LiteralPath $deviceKey.PSPath -ErrorAction SilentlyContinue
         $deviceState = if ($deviceInfo -and $deviceInfo.PSObject.Properties.Name -contains 'DeviceState') {
             $deviceInfo.DeviceState
@@ -524,7 +761,7 @@ function Get-AudioDeviceInfo {
                     }
                 }
 
-                # leqConfigured — enhancement tab OR toggle key existence
+                # leqConfigured - enhancement tab OR toggle key existence
                 $enhancementTabKey = '{d04e05a6-594b-4fb6-a80d-01af5eed7d1d},3'
                 $enhancementTabGuid = '{5860E1C5-F95C-4a7a-8EC8-8AEF24F379A1}'
                 $ourLeqKey = '{fc52a749-4be9-4510-896e-966ba6525980},3'
@@ -744,108 +981,234 @@ function Install-LEQRegistry {
         Write-Output "[INSTALL] Enhancement tab not found - proceeding with full install"
     }
 
-    # Convert registry path for .reg file
-    $regKeyPath = $fxKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
-
-    # Build .reg file with APO associations AND LEQ enable keys
-    $regContent = "Windows Registry Editor Version 5.00`r`n`r`n"
-    $regContent += "[$regKeyPath]`r`n"
-
-    # FX APO associations (required for LEQ to work)
-    $regContent += "`"$($script:FX_PROPERTY_BASE)$($script:FX_SLOT_LFX)`"=`"$($script:LEQ_APO_GUID)`"`r`n"
-    $regContent += "`"$($script:FX_PROPERTY_BASE)$($script:FX_SLOT_GFX)`"=`"$($script:OTHER_APO_GUID)`"`r`n"
-    $regContent += "`"$($script:FX_PROPERTY_BASE)$($script:FX_SLOT_ENHANCEMENT)`"=`"$($script:ENHANCEMENT_TAB_GUID)`"`r`n"
-    $regContent += "`"$($script:FX_PROPERTY_BASE)$($script:FX_SLOT_SFX)`"=`"$($script:LEQ_APO_GUID)`"`r`n"
-    $regContent += "`"$($script:FX_PROPERTY_BASE)$($script:FX_SLOT_MFX)`"=`"$($script:OTHER_APO_GUID)`"`r`n"
-
-    # LEQ enable keys (enabled by default on install)
+    # === Build value lists for FxProperties ===
     $enabledHex = "0b,00,00,00,01,00,00,00,ff,ff,00,00"
-    $regContent += "`"{fc52a749-4be9-4510-896e-966ba6525980},3`"=hex:$enabledHex`r`n"
-    $regContent += "`"{fc52a749-4be9-4510-896e-966ba6525980},1599`"=hex:$enabledHex`r`n"
-
-    # Release time keys
     $releaseTimeHex = "03,00,00,00,01,00,00,00,$($ReleaseTime.ToString('x2')),00,00,00"
-    $regContent += "`"{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3`"=hex:$releaseTimeHex`r`n"
-    $regContent += "`"{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},1599`"=hex:$releaseTimeHex`r`n"
+
+    $fxValues = @(
+        # FX APO associations (required for LEQ to work)
+        @{ Name = "$($script:FX_PROPERTY_BASE)$($script:FX_SLOT_LFX)";         Type = [uint32]1; Data = [System.Text.Encoding]::Unicode.GetBytes($script:LEQ_APO_GUID + [char]0) }
+        @{ Name = "$($script:FX_PROPERTY_BASE)$($script:FX_SLOT_GFX)";         Type = [uint32]1; Data = [System.Text.Encoding]::Unicode.GetBytes($script:OTHER_APO_GUID + [char]0) }
+        @{ Name = "$($script:FX_PROPERTY_BASE)$($script:FX_SLOT_ENHANCEMENT)";  Type = [uint32]1; Data = [System.Text.Encoding]::Unicode.GetBytes($script:ENHANCEMENT_TAB_GUID + [char]0) }
+        @{ Name = "$($script:FX_PROPERTY_BASE)$($script:FX_SLOT_SFX)";         Type = [uint32]1; Data = [System.Text.Encoding]::Unicode.GetBytes($script:LEQ_APO_GUID + [char]0) }
+        @{ Name = "$($script:FX_PROPERTY_BASE)$($script:FX_SLOT_MFX)";         Type = [uint32]1; Data = [System.Text.Encoding]::Unicode.GetBytes($script:OTHER_APO_GUID + [char]0) }
+        # LEQ enable keys (enabled by default on install)
+        @{ Name = '{fc52a749-4be9-4510-896e-966ba6525980},3';    Type = [uint32]3; Data = (ConvertFrom-HexString $enabledHex) }
+        @{ Name = '{fc52a749-4be9-4510-896e-966ba6525980},1599'; Type = [uint32]3; Data = (ConvertFrom-HexString $enabledHex) }
+        # Release time keys
+        @{ Name = '{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3';    Type = [uint32]3; Data = (ConvertFrom-HexString $releaseTimeHex) }
+        @{ Name = '{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},1599'; Type = [uint32]3; Data = (ConvertFrom-HexString $releaseTimeHex) }
+    )
 
     # Processing mode keys - preserve existing or add defaults
     # These tell the audio engine which processing modes the SFX/MFX APOs support.
     # Without them, LEQ loads but the audio engine won't route audio through it.
     if ($existingProcessingModes.Count -gt 0) {
-        # Restore snapshotted keys
         foreach ($entry in $existingProcessingModes.GetEnumerator()) {
             $keyName = $entry.Key
             $values = @($entry.Value)
-            # REG_MULTI_SZ: encode as hex(7) - UTF-16LE strings with double null terminator
-            $hexParts = @()
+            # REG_MULTI_SZ: UTF-16LE strings with null terminators + final double null
+            $byteList = New-Object System.Collections.Generic.List[byte]
             foreach ($v in $values) {
-                $bytes = [System.Text.Encoding]::Unicode.GetBytes($v)
-                $hexParts += ($bytes | ForEach-Object { $_.ToString('x2') }) -join ','
-                $hexParts += '00,00'  # null terminator for this string
+                $byteList.AddRange([System.Text.Encoding]::Unicode.GetBytes($v))
+                $byteList.AddRange([byte[]]@(0, 0))  # null terminator for this string
             }
-            $hexParts += '00,00'  # final null terminator for MULTI_SZ
-            $hexStr = $hexParts -join ','
-            $regContent += "`"$keyName`"=hex(7):$hexStr`r`n"
+            $byteList.AddRange([byte[]]@(0, 0))  # final null terminator for MULTI_SZ
+            $fxValues += @{ Name = $keyName; Type = [uint32]7; Data = [byte[]]$byteList.ToArray() }
         }
         Write-Verbose "[INSTALL] Restored $($existingProcessingModes.Count) processing mode keys"
     } else {
         # Add default processing mode keys for SFX and MFX
-        # AUDIO_SIGNALPROCESSINGMODE_DEFAULT encoded as REG_MULTI_SZ hex(7)
         $defaultModeBytes = [System.Text.Encoding]::Unicode.GetBytes($script:AUDIO_SIGNALPROCESSINGMODE_DEFAULT)
-        $defaultModeHex = (($defaultModeBytes | ForEach-Object { $_.ToString('x2') }) -join ',') + ',00,00,00,00'
+        $multiSzBytes = New-Object System.Collections.Generic.List[byte]
+        $multiSzBytes.AddRange($defaultModeBytes)
+        $multiSzBytes.AddRange([byte[]]@(0, 0, 0, 0))  # null + final null
         $sfxKey = "$($script:PROCESSING_MODES_PROPERTY_KEY),5"
         $mfxKey = "$($script:PROCESSING_MODES_PROPERTY_KEY),6"
-        $regContent += "`"$sfxKey`"=hex(7):$defaultModeHex`r`n"
-        $regContent += "`"$mfxKey`"=hex(7):$defaultModeHex`r`n"
+        $fxValues += @{ Name = $sfxKey; Type = [uint32]7; Data = [byte[]]$multiSzBytes.ToArray() }
+        $fxValues += @{ Name = $mfxKey; Type = [uint32]7; Data = [byte[]]$multiSzBytes.ToArray() }
         Write-Verbose "[INSTALL] Added default SFX/MFX processing mode keys"
     }
 
-    # UI state notification key in Properties (tells Windows Sound applet LEQ is ON)
+    # Properties subkey values (tells Windows Sound applet LEQ is ON)
     $propsKeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render\$($Device.Guid)\Properties"
-    $propsRegKeyPath = $propsKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
-    $regContent += "`r`n[$propsRegKeyPath]`r`n"
-    $regContent += "`"{1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2`"=hex:02,00,00,00,01,00,00,00,fb,02`r`n"
+    $propsValues = @(
+        @{ Name = '{1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2'; Type = [uint32]3; Data = (ConvertFrom-HexString "02,00,00,00,01,00,00,00,fb,02") }
+    )
 
-    # User subkey - some devices read LEQ/RT state from here
+    # User subkey values (some devices read LEQ/RT state from here)
     $userKeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render\$($Device.Guid)\FxProperties\{b13412ee-07af-4c57-b08b-e327f8db085b}\User"
-    if (Test-Path -LiteralPath $userKeyPath) {
-        $userRegKeyPath = $userKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
-        $regContent += "`r`n[$userRegKeyPath]`r`n"
-        $regContent += "`"{fc52a749-4be9-4510-896e-966ba6525980},3`"=hex:$enabledHex`r`n"
-        $regContent += "`"{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3`"=hex:$releaseTimeHex`r`n"
-        Write-Verbose "[INSTALL] Writing LEQ enable + RT to User subkey"
+    $hasUserKey = Test-Path -LiteralPath $userKeyPath
+    $userValues = @()
+    if ($hasUserKey) {
+        $userValues = @(
+            @{ Name = '{fc52a749-4be9-4510-896e-966ba6525980},3'; Type = [uint32]3; Data = (ConvertFrom-HexString $enabledHex) }
+            @{ Name = '{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3'; Type = [uint32]3; Data = (ConvertFrom-HexString $releaseTimeHex) }
+        )
+        Write-Verbose "[INSTALL] Will write LEQ enable + RT to User subkey"
     }
 
-    # Write and import .reg file
-    $regFile = Join-Path $env:TEMP "AIW_LEQ_Install_$([System.IO.Path]::GetRandomFileName()).reg"
+    # === Write using P/Invoke (minimal KEY_SET_VALUE access) ===
+    # Falls back to regedit /s if P/Invoke fails
+    $writeOk = $false
     try {
-        $regContent | Out-File -FilePath $regFile -Encoding ASCII -Force
-        Write-Output "[INSTALL] Created: $regFile"
-
-        $proc = Start-Process -FilePath "$env:SystemRoot\regedit.exe" -ArgumentList '/s', $regFile -Verb RunAs -Wait -PassThru -WindowStyle Hidden
-
-        if ($proc.ExitCode -eq 0) {
-            Write-Output "[INSTALL] [OK] Registry import successful"
-
-            Write-Output "[INSTALL] Restarting audio service..."
-            try {
-                Restart-Service audiosrv -Force -ErrorAction Stop
-                Write-Output "[INSTALL] [OK] Audio service restarted"
-            } catch {
-                Write-Output "[INSTALL] [WARNING] Audio service restart failed: $($_.Exception.Message)"
-            }
-
-            Write-Output "[INSTALL] [OK] LEQ installed successfully"
-            return $true
-        } else {
-            Write-Output "[INSTALL] [ERROR] Registry import failed: Exit code $($proc.ExitCode)"
-            return $false
+        Write-Output "[INSTALL] Writing registry values via P/Invoke..."
+        $fxOk = Write-RegistryValues -Path $fxKeyPath -Values $fxValues
+        $propsOk = Write-RegistryValues -Path $propsKeyPath -Values $propsValues
+        $userOk = $true
+        if ($hasUserKey -and $userValues.Count -gt 0) {
+            $userOk = Write-RegistryValues -Path $userKeyPath -Values $userValues
         }
-    } finally {
-        if (Test-Path $regFile) {
-            Remove-Item $regFile -Force -ErrorAction SilentlyContinue
+        $writeOk = $fxOk -and $propsOk -and $userOk
+        if ($writeOk) {
+            Write-Output "[INSTALL] [OK] P/Invoke registry writes successful"
+        } else {
+            Write-Output "[INSTALL] [WARNING] P/Invoke partial failure (fx=$fxOk props=$propsOk user=$userOk)"
+        }
+    } catch {
+        Write-Output "[INSTALL] [WARNING] P/Invoke failed: $_ - falling back to regedit"
+    }
+
+    # Fallback: use regedit /s if P/Invoke failed
+    if (-not $writeOk) {
+        Write-Output "[INSTALL] Falling back to regedit /s..."
+
+        # Build .reg file content
+        $regKeyPath = $fxKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
+        $regContent = "Windows Registry Editor Version 5.00`r`n`r`n"
+        $regContent += "[$regKeyPath]`r`n"
+        foreach ($v in $fxValues) {
+            if ($v.Type -eq 1) {
+                $strVal = [System.Text.Encoding]::Unicode.GetString($v.Data, 0, $v.Data.Length - 2)  # strip null
+                $regContent += "`"$($v.Name)`"=`"$strVal`"`r`n"
+            } elseif ($v.Type -eq 3) {
+                $hexStr = ($v.Data | ForEach-Object { $_.ToString('x2') }) -join ','
+                $regContent += "`"$($v.Name)`"=hex:$hexStr`r`n"
+            } elseif ($v.Type -eq 7) {
+                $hexStr = ($v.Data | ForEach-Object { $_.ToString('x2') }) -join ','
+                $regContent += "`"$($v.Name)`"=hex(7):$hexStr`r`n"
+            }
+        }
+        $propsRegKeyPath = $propsKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
+        $regContent += "`r`n[$propsRegKeyPath]`r`n"
+        foreach ($v in $propsValues) {
+            $hexStr = ($v.Data | ForEach-Object { $_.ToString('x2') }) -join ','
+            $regContent += "`"$($v.Name)`"=hex:$hexStr`r`n"
+        }
+        if ($hasUserKey -and $userValues.Count -gt 0) {
+            $userRegKeyPath = $userKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
+            $regContent += "`r`n[$userRegKeyPath]`r`n"
+            foreach ($v in $userValues) {
+                $hexStr = ($v.Data | ForEach-Object { $_.ToString('x2') }) -join ','
+                $regContent += "`"$($v.Name)`"=hex:$hexStr`r`n"
+            }
+        }
+
+        $regFile = Join-Path $env:TEMP "AIW_LEQ_Install_$([System.IO.Path]::GetRandomFileName()).reg"
+        try {
+            $regContent | Out-File -FilePath $regFile -Encoding ASCII -Force
+            Write-Output "[INSTALL] Created: $regFile"
+            Grant-RegistryKeyAccess -Path $fxKeyPath | Out-Null
+            $proc = Start-Process -FilePath "$env:SystemRoot\regedit.exe" -ArgumentList '/s', $regFile -Verb RunAs -Wait -PassThru -WindowStyle Hidden
+            if ($proc.ExitCode -ne 0) {
+                Write-Output "[INSTALL] [ERROR] Registry import failed: Exit code $($proc.ExitCode)"
+            } else {
+                Write-Output "[INSTALL] [OK] regedit fallback import successful"
+            }
+        } finally {
+            if (Test-Path $regFile) { Remove-Item $regFile -Force -ErrorAction SilentlyContinue }
         }
     }
+
+    # === Verify critical values actually landed ===
+    Start-Sleep -Milliseconds 300
+    $verifyFailed = $false
+    $fxVerify = Get-ItemProperty -LiteralPath $fxKeyPath -ErrorAction SilentlyContinue
+
+    # Check Enhancement tab (the key indicator of a complete install)
+    $enhSlotKey = "$($script:FX_PROPERTY_BASE)$($script:FX_SLOT_ENHANCEMENT)"
+    $enhVal = $null
+    if ($fxVerify -and $fxVerify.PSObject.Properties.Name -contains $enhSlotKey) {
+        $enhVal = $fxVerify.PSObject.Properties |
+            Where-Object { $_.Name -eq $enhSlotKey } |
+            Select-Object -ExpandProperty Value
+    }
+    if ($enhVal -ieq $script:ENHANCEMENT_TAB_GUID) {
+        Write-Output "[INSTALL] [VERIFY] Enhancement tab = OK"
+    } else {
+        Write-Output "[INSTALL] [VERIFY] Enhancement tab = MISSING"
+        Write-Output "[INSTALL] [VERIFY]   Expected: $($script:ENHANCEMENT_TAB_GUID)"
+        Write-Output "[INSTALL] [VERIFY]   Actual  : $(if ($enhVal) { $enhVal } else { '(not set)' })"
+        $verifyFailed = $true
+    }
+
+    # Check LEQ toggle key
+    $leqToggleKey = '{fc52a749-4be9-4510-896e-966ba6525980},3'
+    $leqToggleVal = $null
+    if ($fxVerify -and $fxVerify.PSObject.Properties.Name -contains $leqToggleKey) {
+        $leqToggleVal = $fxVerify.PSObject.Properties |
+            Where-Object { $_.Name -eq $leqToggleKey } |
+            Select-Object -ExpandProperty Value
+    }
+    if ($leqToggleVal -is [byte[]] -and $leqToggleVal.Length -ge 10) {
+        Write-Output "[INSTALL] [VERIFY] LEQ toggle key = OK"
+    } else {
+        Write-Output "[INSTALL] [VERIFY] LEQ toggle key = MISSING"
+        $verifyFailed = $true
+    }
+
+    # Check LFX slot
+    $lfxSlotKey = "$($script:FX_PROPERTY_BASE)$($script:FX_SLOT_LFX)"
+    $lfxVal = $null
+    if ($fxVerify -and $fxVerify.PSObject.Properties.Name -contains $lfxSlotKey) {
+        $lfxVal = $fxVerify.PSObject.Properties |
+            Where-Object { $_.Name -eq $lfxSlotKey } |
+            Select-Object -ExpandProperty Value
+    }
+    if ($lfxVal -ieq $script:LEQ_APO_GUID) {
+        Write-Output "[INSTALL] [VERIFY] LFX slot = OK"
+    } else {
+        Write-Output "[INSTALL] [VERIFY] LFX slot = WRONG"
+        Write-Output "[INSTALL] [VERIFY]   Expected: $($script:LEQ_APO_GUID)"
+        Write-Output "[INSTALL] [VERIFY]   Actual  : $(if ($lfxVal) { $lfxVal } else { '(not set)' })"
+        $verifyFailed = $true
+    }
+
+    if ($verifyFailed) {
+        Write-Output "[INSTALL] [WARNING] Registry write verification could not confirm all values"
+        Write-Output "[INSTALL] [WARNING] This may be a stale read - proceeding with audio restart"
+    }
+
+    Write-Output "[INSTALL] Restarting audio service..."
+    try {
+        Restart-Service audiosrv -Force -ErrorAction Stop
+        Write-Output "[INSTALL] [OK] Audio service restarted"
+    } catch {
+        Write-Output "[INSTALL] [WARNING] Audio service restart failed: $($_.Exception.Message)"
+    }
+
+    # Verify processing mode keys survived the audio service restart
+    # AudioEndpointBuilder can sometimes reset FxProperties on restart
+    $fxPostRestart = Get-ItemProperty -LiteralPath $fxKeyPath -ErrorAction SilentlyContinue
+    $sfxModeKey = "$($script:PROCESSING_MODES_PROPERTY_KEY),5"
+    $mfxModeKey = "$($script:PROCESSING_MODES_PROPERTY_KEY),6"
+    $modesOk = $true
+    foreach ($modeKey in @($sfxModeKey, $mfxModeKey)) {
+        if (-not $fxPostRestart -or
+            $fxPostRestart.PSObject.Properties.Name -notcontains $modeKey) {
+            Write-Output "[INSTALL] [VERIFY] $modeKey = MISSING after restart"
+            $modesOk = $false
+        }
+    }
+    if ($modesOk) {
+        Write-Output "[INSTALL] [VERIFY] Processing mode keys survived restart"
+    } else {
+        Write-Output "[INSTALL] [WARNING] Processing mode keys missing after restart"
+        Write-Output "[INSTALL] [WARNING] LEQ may load but audio won't route through it"
+    }
+
+    Write-Output "[INSTALL] [OK] LEQ installed successfully"
+    return $true
 }
 
 function Set-ReleaseTime {
@@ -863,63 +1226,93 @@ function Set-ReleaseTime {
         return $false
     }
 
-    # Convert registry path for .reg file
-    $regKeyPath = $fxKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
+    # Release time binary data
+    $releaseTimeBytes = [byte[]]@(0x03,0x00,0x00,0x00,0x01,0x00,0x00,0x00,$ReleaseTime,0x00,0x00,0x00)
+    $releaseTimeHex = ($releaseTimeBytes | ForEach-Object { "{0:x2}" -f $_ }) -join ','
 
-    # Build .reg file with release time keys
-    $regContent = "Windows Registry Editor Version 5.00`r`n`r`n"
-    $regContent += "[$regKeyPath]`r`n"
+    # Build value entries for P/Invoke
+    $fxValues = @(
+        @{ Name = '{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3';    Type = [uint32]3; Data = $releaseTimeBytes }
+        @{ Name = '{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},1599'; Type = [uint32]3; Data = $releaseTimeBytes }
+    )
 
-    # Release time hex format
-    $releaseTimeHex = "03,00,00,00,01,00,00,00,$($ReleaseTime.ToString('x2')),00,00,00"
-
-    # Write to RT keys in FxProperties
-    $regContent += "`"{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3`"=hex:$releaseTimeHex`r`n"
-    $regContent += "`"{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},1599`"=hex:$releaseTimeHex`r`n"
-
-    # Also write to User subkey for devices that need it
     $userKeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render\$DeviceGuid\FxProperties\{b13412ee-07af-4c57-b08b-e327f8db085b}\User"
-    if (Test-Path -LiteralPath $userKeyPath) {
-        $userRegKeyPath = $userKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
-        $regContent += "`r`n[$userRegKeyPath]`r`n"
-        $regContent += "`"{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3`"=hex:$releaseTimeHex`r`n"
+    $userExists = Test-Path -LiteralPath $userKeyPath
+    $userValues = @(
+        @{ Name = '{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3'; Type = [uint32]3; Data = $releaseTimeBytes }
+    )
+
+    # --- Attempt P/Invoke write (KEY_SET_VALUE only) ---
+    Initialize-RegHelper
+    $pinvokeOk = $true
+
+    Write-Output "[RT] Writing FxProperties values via P/Invoke..."
+    if (-not (Write-RegistryValues -Path $fxKeyPath -Values $fxValues)) {
+        Write-Output "[RT] [WARNING] P/Invoke FxProperties write failed"
+        $pinvokeOk = $false
     }
 
-    # Write and import .reg file
-    $regFile = Join-Path $env:TEMP "AIW_RT_$([System.IO.Path]::GetRandomFileName()).reg"
-    try {
-        $regContent | Out-File -FilePath $regFile -Encoding ASCII -Force
-        Write-Output "[RT] Created: $regFile"
+    if ($pinvokeOk -and $userExists) {
+        Write-Output "[RT] Writing User subkey values via P/Invoke..."
+        if (-not (Write-RegistryValues -Path $userKeyPath -Values $userValues)) {
+            Write-Output "[RT] [WARNING] P/Invoke User subkey write failed"
+            $pinvokeOk = $false
+        }
+    }
 
-        $proc = Start-Process -FilePath "$env:SystemRoot\regedit.exe" -ArgumentList '/s', $regFile -Verb RunAs -Wait -PassThru -WindowStyle Hidden
+    if ($pinvokeOk) {
+        Write-Output "[RT] [OK] P/Invoke registry writes completed"
+    } else {
+        # --- Fallback: regedit /s ---
+        Write-Output "[RT] Falling back to regedit /s..."
 
-        if ($proc.ExitCode -ne 0) {
-            Write-Output "[RT] [ERROR] Registry import failed"
-            return $false
+        Grant-RegistryKeyAccess -Path $fxKeyPath | Out-Null
+
+        $regKeyPath = $fxKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
+        $regContent = "Windows Registry Editor Version 5.00`r`n`r`n"
+        $regContent += "[$regKeyPath]`r`n"
+        $regContent += "`"{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3`"=hex:$releaseTimeHex`r`n"
+        $regContent += "`"{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},1599`"=hex:$releaseTimeHex`r`n"
+
+        if ($userExists) {
+            $userRegKeyPath = $userKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
+            $regContent += "`r`n[$userRegKeyPath]`r`n"
+            $regContent += "`"{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3`"=hex:$releaseTimeHex`r`n"
         }
 
-        # Verify the write by reading back the primary RT key
-        Start-Sleep -Milliseconds 200
-        $rtVerifyKey = "{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3"
+        $regFile = Join-Path $env:TEMP "AIW_RT_$([System.IO.Path]::GetRandomFileName()).reg"
         try {
-            $currentValue = (Get-ItemProperty -LiteralPath $fxKeyPath -Name $rtVerifyKey -ErrorAction Stop).$rtVerifyKey
-            if ($currentValue -is [byte[]] -and $currentValue.Length -ge 9 -and $currentValue[8] -eq $ReleaseTime) {
-                Write-Output "[RT] [VERIFY] Release Time byte[8] = $($currentValue[8]) [MATCH]"
-                Write-Output "[RT] [OK] Release Time set to $ReleaseTime"
-                return $true
-            } else {
-                $actual = if ($currentValue -is [byte[]] -and $currentValue.Length -ge 9) { $currentValue[8] } else { "N/A" }
-                Write-Output "[RT] [VERIFY] Release Time byte[8] = $actual [WRONG] (expected: $ReleaseTime)"
+            $regContent | Out-File -FilePath $regFile -Encoding ASCII -Force
+            $proc = Start-Process -FilePath "$env:SystemRoot\regedit.exe" -ArgumentList '/s', $regFile -Verb RunAs -Wait -PassThru -WindowStyle Hidden
+            if ($proc.ExitCode -ne 0) {
+                Write-Output "[RT] [ERROR] regedit fallback failed"
                 return $false
             }
-        } catch {
-            Write-Output "[RT] [VERIFY] Failed to read back RT key: $($_.Exception.Message)"
+            Write-Output "[RT] [OK] regedit fallback import successful"
+        } finally {
+            if (Test-Path $regFile) {
+                Remove-Item $regFile -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    # Verify the write by reading back the primary RT key
+    Start-Sleep -Milliseconds 200
+    $rtVerifyKey = "{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3"
+    try {
+        $currentValue = (Get-ItemProperty -LiteralPath $fxKeyPath -Name $rtVerifyKey -ErrorAction Stop).$rtVerifyKey
+        if ($currentValue -is [byte[]] -and $currentValue.Length -ge 9 -and $currentValue[8] -eq $ReleaseTime) {
+            Write-Output "[RT] [VERIFY] Release Time byte[8] = $($currentValue[8]) [MATCH]"
+            Write-Output "[RT] [OK] Release Time set to $ReleaseTime"
+            return $true
+        } else {
+            $actual = if ($currentValue -is [byte[]] -and $currentValue.Length -ge 9) { $currentValue[8] } else { "N/A" }
+            Write-Output "[RT] [VERIFY] Release Time byte[8] = $actual [WRONG] (expected: $ReleaseTime)"
             return $false
         }
-    } finally {
-        if (Test-Path $regFile) {
-            Remove-Item $regFile -Force -ErrorAction SilentlyContinue
-        }
+    } catch {
+        Write-Output "[RT] [VERIFY] Failed to read back RT key: $($_.Exception.Message)"
+        return $false
     }
 }
 
@@ -955,31 +1348,6 @@ function Set-LEQRegistry {
 
     if (-not (Test-Path -LiteralPath $fxKeyPath)) {
         throw "Device does not support audio enhancements (FxProperties missing)"
-    }
-
-    # Grant write access to the FxProperties key
-    try {
-        Write-Output "[ACL] Taking ownership of registry key..."
-
-        $acl = Get-Acl -LiteralPath $fxKeyPath
-        $currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-
-        # Add Full Control for current user
-        $rule = New-Object System.Security.AccessControl.RegistryAccessRule(
-            $currentUser,
-            [System.Security.AccessControl.RegistryRights]::FullControl,
-            [System.Security.AccessControl.InheritanceFlags]::ContainerInherit,
-            [System.Security.AccessControl.PropagationFlags]::None,
-            [System.Security.AccessControl.AccessControlType]::Allow
-        )
-
-        $acl.AddAccessRule($rule)
-        Set-Acl -LiteralPath $fxKeyPath -AclObject $acl
-
-        Write-Output "[ACL] [OK] Granted write access"
-    } catch {
-        Write-Output "[ACL] [ERROR] Failed to modify permissions: $_"
-        Write-Output "[ACL] Attempting writes anyway..."
     }
 
     $fxProps = Get-ItemProperty -LiteralPath $fxKeyPath -ErrorAction SilentlyContinue
@@ -1032,84 +1400,116 @@ function Set-LEQRegistry {
     }
     Write-Output "[VERIFY] === END BEFORE ==="
 
-    # Convert registry path from PowerShell format to .reg format
-    $regKeyPath = $fxKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
-
-    # Build .reg file content
-    $regContent = "Windows Registry Editor Version 5.00`r`n`r`n"
-    $regContent += "[$regKeyPath]`r`n"
-
-    # Convert to hex strings for .reg file format
-    $enabledHex = if ($Enabled) {
-        "0b,00,00,00,01,00,00,00,ff,ff,00,00"
+    # Prepare binary data
+    $enabledBytes = if ($Enabled) {
+        [byte[]]@(0x0b,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0xff,0xff,0x00,0x00)
     } else {
-        "0b,00,00,00,01,00,00,00,00,00,00,00"
+        [byte[]]@(0x0b,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x00,0x00)
     }
-    $releaseTimeHex = "03,00,00,00,01,00,00,00,$($ReleaseTime.ToString('x2')),00,00,00"
+    $releaseTimeBytes = [byte[]]@(0x03,0x00,0x00,0x00,0x01,0x00,0x00,0x00,$ReleaseTime,0x00,0x00,0x00)
+    $enabledHex = ($enabledBytes | ForEach-Object { "{0:x2}" -f $_ }) -join ','
+    $releaseTimeHex = ($releaseTimeBytes | ForEach-Object { "{0:x2}" -f $_ }) -join ','
 
-    # Add LEQ enable keys
+    # UI state notification bytes
+    $uiStateBytes = if ($Enabled) {
+        [byte[]]@(0x02,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0xfb,0x02)  # ON
+    } else {
+        [byte[]]@(0x02,0x00,0x00,0x00,0x01,0x00,0x00,0x00,0xfb,0x01)  # OFF
+    }
+
+    # --- Build value lists for P/Invoke ---
+    $fxValues = @()
     foreach ($key in $existingLeqKeys) {
-        $regContent += "`"$key`"=hex:$enabledHex`r`n"
+        $fxValues += @{ Name = $key; Type = [uint32]3; Data = $enabledBytes }
     }
-
-    # Add Release Time keys
     foreach ($key in $existingRtKeys) {
-        $regContent += "`"$key`"=hex:$releaseTimeHex`r`n"
+        $fxValues += @{ Name = $key; Type = [uint32]3; Data = $releaseTimeBytes }
     }
 
-    # Also write to Properties key for Windows UI sync
     $propsKeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render\$($Device.Guid)\Properties"
-    $propsRegKeyPath = $propsKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
+    $propsValues = @(
+        @{ Name = '{1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2'; Type = [uint32]3; Data = $uiStateBytes }
+    )
 
-    $regContent += "`r`n[$propsRegKeyPath]`r`n"
-
-    # UI state notification key
-    $uiStateHex = if ($Enabled) {
-        "02,00,00,00,01,00,00,00,fb,02"  # ON
-    } else {
-        "02,00,00,00,01,00,00,00,fb,01"  # OFF
-    }
-    $regContent += "`"{1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2`"=hex:$uiStateHex`r`n"
-
-    # Also write to User subkey for devices that need it
     $userKeyPath = "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\MMDevices\Audio\Render\$($Device.Guid)\FxProperties\{b13412ee-07af-4c57-b08b-e327f8db085b}\User"
-    if (Test-Path -LiteralPath $userKeyPath) {
-        $userRegKeyPath = $userKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
-        $regContent += "`r`n[$userRegKeyPath]`r`n"
-        $regContent += "`"{fc52a749-4be9-4510-896e-966ba6525980},3`"=hex:$enabledHex`r`n"
-        $regContent += "`"{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3`"=hex:$releaseTimeHex`r`n"
+    $userExists = Test-Path -LiteralPath $userKeyPath
+    $userValues = @(
+        @{ Name = '{fc52a749-4be9-4510-896e-966ba6525980},3'; Type = [uint32]3; Data = $enabledBytes }
+        @{ Name = '{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3'; Type = [uint32]3; Data = $releaseTimeBytes }
+    )
+
+    # --- Attempt P/Invoke write (KEY_SET_VALUE only) ---
+    Initialize-RegHelper
+    $pinvokeOk = $true
+
+    Write-Output "[REG] Writing FxProperties values via P/Invoke..."
+    if (-not (Write-RegistryValues -Path $fxKeyPath -Values $fxValues)) {
+        Write-Output "[REG] [WARNING] P/Invoke FxProperties write failed"
+        $pinvokeOk = $false
     }
 
-    # Write .reg file to temp location
-    $regFile = Join-Path $env:TEMP "AIW_LEQ_$([System.IO.Path]::GetRandomFileName()).reg"
-    try {
-        $regContent | Out-File -FilePath $regFile -Encoding ASCII -Force
-        Write-Output "[REG] Created temp file: $regFile"
+    if ($pinvokeOk) {
+        Write-Output "[REG] Writing Properties values via P/Invoke..."
+        if (-not (Write-RegistryValues -Path $propsKeyPath -Values $propsValues)) {
+            Write-Output "[REG] [WARNING] P/Invoke Properties write failed"
+            $pinvokeOk = $false
+        }
+    }
 
-        # Import using regedit.exe with elevation
-        $startParams = @{
-            FilePath = "$env:SystemRoot\regedit.exe"
-            ArgumentList = '/s', $regFile
-            Verb = 'RunAs'
-            Wait = $true
-            WindowStyle = 'Hidden'
-            PassThru = $true
+    if ($pinvokeOk -and $userExists) {
+        Write-Output "[REG] Writing User subkey values via P/Invoke..."
+        if (-not (Write-RegistryValues -Path $userKeyPath -Values $userValues)) {
+            Write-Output "[REG] [WARNING] P/Invoke User subkey write failed"
+            $pinvokeOk = $false
+        }
+    }
+
+    if ($pinvokeOk) {
+        Write-Output "[REG] [OK] P/Invoke registry writes completed"
+    } else {
+        # --- Fallback: regedit /s ---
+        Write-Output "[REG] Falling back to regedit /s..."
+
+        # Grant write access for regedit fallback
+        Grant-RegistryKeyAccess -Path $fxKeyPath | Out-Null
+
+        $regKeyPath = $fxKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
+        $regContent = "Windows Registry Editor Version 5.00`r`n`r`n"
+        $regContent += "[$regKeyPath]`r`n"
+
+        foreach ($key in $existingLeqKeys) {
+            $regContent += "`"$key`"=hex:$enabledHex`r`n"
+        }
+        foreach ($key in $existingRtKeys) {
+            $regContent += "`"$key`"=hex:$releaseTimeHex`r`n"
         }
 
-        Write-Output "[REG] Importing registry file..."
-        $proc = Start-Process @startParams
+        $propsRegKeyPath = $propsKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
+        $regContent += "`r`n[$propsRegKeyPath]`r`n"
+        $uiStateHex = ($uiStateBytes | ForEach-Object { "{0:x2}" -f $_ }) -join ','
+        $regContent += "`"{1e94c58f-3e40-4ddb-b10c-a86d8b870a31},2`"=hex:$uiStateHex`r`n"
 
+        if ($userExists) {
+            $userRegKeyPath = $userKeyPath -replace '^HKLM:\\', 'HKEY_LOCAL_MACHINE\'
+            $regContent += "`r`n[$userRegKeyPath]`r`n"
+            $regContent += "`"{fc52a749-4be9-4510-896e-966ba6525980},3`"=hex:$enabledHex`r`n"
+            $regContent += "`"{9c00eeed-edce-4cd8-ae08-cb05e8ef57a0},3`"=hex:$releaseTimeHex`r`n"
+        }
+
+        $regFile = Join-Path $env:TEMP "AIW_LEQ_$([System.IO.Path]::GetRandomFileName()).reg"
+        try {
+            $regContent | Out-File -FilePath $regFile -Encoding ASCII -Force
+            Write-Output "[REG] Created temp file: $regFile"
+            $proc = Start-Process -FilePath "$env:SystemRoot\regedit.exe" -ArgumentList '/s', $regFile -Verb RunAs -Wait -WindowStyle Hidden -PassThru
             if ($proc.ExitCode -eq 0) {
-            Write-Output "[REG] [OK] Registry import successful"
-
-        } else {
-            Write-Output "[REG] [ERROR] Registry import failed with exit code: $($proc.ExitCode)"
-        }
-
-    } finally {
-        # Clean up temp file
-        if (Test-Path $regFile) {
-            Remove-Item $regFile -Force -ErrorAction SilentlyContinue
+                Write-Output "[REG] [OK] regedit fallback import successful"
+            } else {
+                Write-Output "[REG] [ERROR] regedit fallback failed with exit code: $($proc.ExitCode)"
+            }
+        } finally {
+            if (Test-Path $regFile) {
+                Remove-Item $regFile -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 
@@ -1153,7 +1553,7 @@ function Set-LEQRegistry {
     Write-Output "[VERIFY] === END AFTER ===`n"
 
     if ($verifyFailed) {
-        throw "Registry write verification failed — one or more values did not match after write"
+        throw "Registry write verification failed - one or more values did not match after write"
     }
 
 }

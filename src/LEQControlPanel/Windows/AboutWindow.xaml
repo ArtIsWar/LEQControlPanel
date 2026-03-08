@@ -106,7 +106,7 @@
                                Margin="0,0,0,5"/>
 
                     <!-- Version -->
-                    <TextBlock x:Name="VersionText" Text="Version 1.0.0"
+                    <TextBlock x:Name="VersionText" Text="Version 1.0.1"
                                FontSize="13"
                                Foreground="{StaticResource Brush_TitleGrey}"
                                HorizontalAlignment="Center"

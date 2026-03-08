@@ -16,9 +16,9 @@
     <Product>LEQ Control Panel</Product>
     <Company>ArtIsWar LLC</Company>
     <Description>Standalone LEQ registry control tool for instant Loudness Equalization toggling without audio service restarts</Description>
-    <Version>1.0.0</Version>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
+    <Version>1.0.1</Version>
+    <AssemblyVersion>1.0.1.0</AssemblyVersion>
+    <FileVersion>1.0.1.0</FileVersion>
     <Copyright>Copyright © 2025-2026 ArtIsWar LLC</Copyright>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>

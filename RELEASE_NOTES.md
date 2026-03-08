@@ -1,3 +1,17 @@
+# LEQ Control Panel v1.0.1
+
+Patch release improving compatibility and reliability.
+
+## Fixes
+
+- Improved registry write compatibility on restrictive Windows 11 configurations
+- Fixed install success dialog not appearing after successful installation
+- Fixed release time slider not persisting changes on some systems
+- Enhanced CLSID registration validation during capability checks
+- Improved diagnostic output for troubleshooting install issues
+
+---
+
 # LEQ Control Panel v1.0.0
 
 First public release. A standalone Windows tool for registry-level Loudness Equalization control and installation.
